@@ -2,9 +2,7 @@
 
 選一個城市，一眼看清 5 小時車程圈內所有區縣。
 
-**線上體驗** → [drive-escape.pomodiary.com](https://drive-escape.pomodiary.com)
-
-**作者** → [@benshandebiao](https://x.com/benshandebiao)
+**作者** → [@zhaoshuomaster](https://github.com/zhaoshuomaster)
 
 🌐 [简体中文](./README_ZH.md) | [English](./README_EN.md) | [日本語](./README_JA.md)
 

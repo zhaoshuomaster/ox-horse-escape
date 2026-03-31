@@ -2,9 +2,7 @@
 
 都市を選んで、5時間以内に車でどこまで行けるか一目で確認。
 
-**デモ** → [drive-escape.pomodiary.com](https://drive-escape.pomodiary.com)
-
-**Author** → [@benshandebiao](https://x.com/benshandebiao)
+**Author** → [@zhaoshuomaster](https://github.com/zhaoshuomaster)
 
 🌐 [简体中文](./README_ZH.md) | [English](./README_EN.md) | [繁體中文](./README_TW.md)
 

@@ -2,9 +2,7 @@
 
 Pick a city, see how far you can drive in 5 hours.
 
-**Live Demo** → [drive-escape.pomodiary.com](https://drive-escape.pomodiary.com)
-
-**Author** → [@benshandebiao](https://x.com/benshandebiao)
+**Author** → [@zhaoshuomaster](https://github.com/zhaoshuomaster)
 🌐 [简体中文](./README_ZH.md) | [繁體中文](./README_TW.md) | [日本語](./README_JA.md)
 
 ## Features
