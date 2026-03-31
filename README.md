@@ -35,8 +35,8 @@ No paid APIs. Fully open source.
 ## Run Locally
 
 ```bash
-git clone https://github.com/qiaoshouqing/drive-escape.git
-cd drive-escape
+git clone https://github.com/zhaoshuomaster/ox-horse-escape.git
+cd ox-horse-escape
 python3 -m http.server 8080
 # open http://localhost:8080
 ```
@@ -44,7 +44,7 @@ python3 -m http.server 8080
 ## Deploy
 
 ```bash
-wrangler pages deploy . --project-name drive-escape
+wrangler pages deploy . --project-name ox-horse-escape
 ```
 
 ## License
