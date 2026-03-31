@@ -39,7 +39,7 @@ python3 -m http.server 8080
 ## 部署
 
 ```bash
-wrangler pages deploy . --project-name drive-escape
+wrangler pages deploy . --project-name ox-horse-escape
 ```
 
 ## 开源协议

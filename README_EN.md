@@ -38,7 +38,7 @@ python3 -m http.server 8080
 ## Deploy
 
 ```bash
-wrangler pages deploy . --project-name drive-escape
+wrangler pages deploy . --project-name ox-horse-escape
 ```
 
 ## License

@@ -1,4 +1,4 @@
-# 🚗 週末自駕逃離計劃
+# 🐮🐴 牛馬逃離計劃
 
 選一個城市，一眼看清 5 小時車程圈內所有區縣。
 
@@ -39,7 +39,7 @@ python3 -m http.server 8080
 ## 部署
 
 ```bash
-wrangler pages deploy . --project-name drive-escape
+wrangler pages deploy . --project-name ox-horse-escape
 ```
 
 ## 開源協議

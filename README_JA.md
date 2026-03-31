@@ -1,4 +1,4 @@
-# 🚗 週末ドライブ脱出マップ
+# 🐮🐴 牛馬脱出計画
 
 都市を選んで、5時間以内に車でどこまで行けるか一目で確認。
 
@@ -39,7 +39,7 @@ python3 -m http.server 8080
 ## デプロイ
 
 ```bash
-wrangler pages deploy . --project-name drive-escape
+wrangler pages deploy . --project-name ox-horse-escape
 ```
 
 ## ライセンス
