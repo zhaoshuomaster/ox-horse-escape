@@ -1,0 +1,2345 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>牛马逃离计划</title>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-7R2BCNPBSP"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-7R2BCNPBSP');
+  </script>
+  <script src="lang/zh-CN.js?v=2" id="lang-script"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script type="text/javascript" src="https://webapi.amap.com/maps?v=1.4.15&key=6db4289a25ce8104d8a6607311568479"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; }
+
+    #map { width: 100%; height: 100%; background: #e8e4d8; }
+
+    /* 标题浮层 */
+    .title-overlay {
+      position: fixed;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      text-align: center;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      padding: 10px 24px;
+      border-radius: 14px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: box-shadow 0.15s;
+    }
+    .title-overlay:hover {
+      box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+    }
+    .title-overlay .en {
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #666;
+    }
+    .title-overlay h1 {
+      font: 900 24px/1.2 "Noto Serif SC", serif;
+      color: #1c1c1c;
+      margin: 2px 0;
+    }
+    .title-overlay .sub {
+      font: 700 13px/1.2 "Noto Serif SC", serif;
+      color: #1a6e5c;
+      letter-spacing: 0.1em;
+    }
+
+    /* 顶部右侧控件栏 */
+    .top-controls {
+      position: fixed;
+      top: 12px;
+      right: 16px;
+      z-index: 1001;
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    }
+
+    /* 搜索框 */
+    .search-box {
+      width: 220px;
+    }
+    .search-box input {
+      width: 100%;
+      padding: 8px 14px;
+      border: none;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+      font-size: 13px;
+      outline: none;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .search-box input::placeholder { color: #aaa; }
+    .search-box input:focus { box-shadow: 0 4px 20px rgba(0,0,0,0.18); }
+
+    /* 语言切换器 */
+    .lang-switcher select {
+      padding: 8px 10px;
+      border: none;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+      font-size: 12px;
+      outline: none;
+      font-family: system-ui, -apple-system, sans-serif;
+      cursor: pointer;
+      color: #333;
+      -webkit-appearance: none;
+      appearance: none;
+      padding-right: 22px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+    }
+    #search-results {
+      margin-top: 4px;
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+      overflow: hidden;
+      display: none;
+    }
+    #search-results .result-item {
+      padding: 8px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      border-bottom: 1px solid rgba(0,0,0,0.05);
+    }
+    #search-results .result-item:last-child { border-bottom: none; }
+    #search-results .result-item:hover { background: rgba(26,110,92,0.08); }
+    #search-results .result-item .result-sub {
+      font-size: 11px;
+      color: #888;
+      margin-top: 2px;
+    }
+
+    /* Loading overlay */
+    .loading-overlay {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 2000;
+      display: none;
+      pointer-events: none;
+    }
+    .loading-overlay.active { display: flex; }
+    .loading-box {
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: #333;
+      white-space: nowrap;
+    }
+    .loading-box .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid #e0e0e0;
+      border-top-color: #1a6e5c;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* 图例 */
+    .leaflet-control-zoom { display: none !important; }
+    .legend {
+      position: fixed;
+      left: 12px;
+      bottom: 24px;
+      z-index: 1000;
+      width: 150px;
+      padding: 10px;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+      font-size: 10px;
+    }
+    .legend h3 { font-size: 12px; margin-bottom: 6px; }
+    .legend .item, .legend .band {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 3px 0;
+    }
+    .legend .swatch {
+      width: 16px; height: 10px;
+      border: 1px solid rgba(0,0,0,0.2);
+      flex-shrink: 0;
+    }
+    .legend .line-swatch {
+      width: 16px; height: 0;
+      flex-shrink: 0;
+    }
+    .legend .line-swatch.city { border-top: 2px solid #6b4c8a; }
+    .legend .line-swatch.prov { border-top: 2px dashed #888; }
+    .legend .line-swatch.origin { border-top: 3px solid #e88; }
+    .legend .hatch {
+      width: 16px; height: 10px;
+      flex-shrink: 0;
+      border: 1px solid rgba(0,0,0,0.2);
+      background: repeating-linear-gradient(45deg, #aa2211, #aa2211 3px, #fff 3px, #fff 6px);
+    }
+
+    /* 县区标签 */
+    .county-label {
+      font-weight: 600;
+      line-height: 1.2;
+      color: #111;
+      text-align: center;
+      white-space: pre;
+      text-shadow:
+        -1px -1px 0 rgba(255,255,255,0.9),
+        1px -1px 0 rgba(255,255,255,0.9),
+        -1px 1px 0 rgba(255,255,255,0.9),
+        1px 1px 0 rgba(255,255,255,0.9),
+        0 0 4px rgba(255,255,255,0.8);
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+    }
+    .county-label.gray {
+      color: #888;
+      font-weight: 400;
+      text-shadow:
+        -1px -1px 0 rgba(255,255,255,0.7),
+        1px -1px 0 rgba(255,255,255,0.7),
+        -1px 1px 0 rgba(255,255,255,0.7),
+        1px 1px 0 rgba(255,255,255,0.7);
+    }
+
+    /* 信息面板 */
+    .info-panel {
+      position: fixed;
+      right: 12px;
+      bottom: 24px;
+      z-index: 1000;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(8px);
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+      font-size: 13px;
+      line-height: 1.5;
+      display: none;
+      max-width: 220px;
+    }
+    .info-panel h4 { font-size: 15px; margin-bottom: 4px; }
+    .info-panel .time { color: #1a6e5c; font-weight: 700; }
+
+    /* 隐藏 leaflet 默认控件样式 */
+    .leaflet-control-attribution { font-size: 9px !important; }
+    /* 底部控制面板 */
+    .bottom-controls {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1001;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-radius: 14px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+      padding: 16px 20px;
+      width: 90%;
+      max-width: 500px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .bottom-input input {
+      width: 100%;
+      padding: 10px 14px;
+      border: none;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.92);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.10);
+      font-size: 14px;
+      outline: none;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .bottom-input input::placeholder { color: #aaa; }
+    .bottom-slider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .slider-label {
+      font-size: 14px;
+      font-weight: 700;
+      color: #1a6e5c;
+      min-width: 40px;
+    }
+    #drive-time-slider {
+      flex: 1;
+      height: 6px;
+      border-radius: 3px;
+      background: #e0e0e0;
+      outline: none;
+      -webkit-appearance: none;
+    }
+    #drive-time-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #1a6e5c;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    #drive-time-slider::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #1a6e5c;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+
+    /* 移动端适配 — 保持 PC 版风格，只缩小 */
+    @media (max-width: 640px) {
+      .title-overlay {
+        top: 8px;
+        padding: 6px 14px;
+        width: auto;
+        max-width: calc(100vw - 120px);
+        white-space: nowrap;
+      }
+      .title-overlay .en { font-size: 7px; }
+      .title-overlay h1 { font-size: 15px; }
+      .title-overlay .sub { font-size: 10px; }
+
+      .top-controls {
+        top: auto;
+        right: auto;
+        left: auto;
+        display: contents;
+      }
+      .top-controls .search-box {
+        position: fixed;
+        top: 68px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 180px;
+        z-index: 1001;
+      }
+      .top-controls input[type="text"] {
+        width: 100%;
+        padding: 7px 12px;
+        font-size: 13px;
+      }
+      .top-controls .lang-switcher {
+        position: fixed;
+        top: 12px;
+        right: 10px;
+        z-index: 1002;
+      }
+      .lang-switcher select {
+        padding: 6px 24px 6px 8px;
+        font-size: 11px;
+      }
+      #search-results { max-height: 200px; }
+
+      .legend {
+        left: 6px;
+        bottom: 10px;
+        width: 80px;
+        padding: 5px;
+        font-size: 7px;
+      }
+      .legend h3 { font-size: 8px; margin-bottom: 3px; }
+      .legend .item, .legend .band { gap: 3px; margin: 1px 0; }
+      .legend .swatch { width: 10px; height: 6px; }
+      .legend .line-swatch { width: 10px; }
+      .legend .hatch { width: 10px; height: 6px; }
+
+      .info-panel {
+        right: 8px;
+        bottom: 50px;
+        max-width: 160px;
+        padding: 8px 10px;
+        font-size: 11px;
+      }
+
+
+
+      .loading-overlay { bottom: 10px; }
+      .loading-box { font-size: 11px; padding: 5px 12px; }
+      
+      /* 底部控件移动端适配 */
+      .bottom-controls {
+        width: 95%;
+        padding: 12px 16px;
+        bottom: 10px;
+      }
+      .bottom-input input {
+        padding: 8px 12px;
+        font-size: 13px;
+      }
+      .slider-label {
+        font-size: 12px;
+      }
+      #drive-time-slider {
+        height: 4px;
+      }
+      #drive-time-slider::-webkit-slider-thumb {
+        width: 16px;
+        height: 16px;
+      }
+      #drive-time-slider::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+      }
+    }
+
+    /* ── 欢迎屏 ── */
+    #welcome-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      background: #e8e4d8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.5s ease;
+    }
+    #welcome-screen.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #welcome-screen.hidden { display: none; }
+    .welcome-card {
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 20px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.13);
+      padding: 44px 48px 40px;
+      width: 480px;
+      max-width: 92vw;
+      text-align: center;
+    }
+    .welcome-eyebrow {
+      font: 700 11px/1 system-ui, sans-serif;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #1a6e5c;
+      margin-bottom: 16px;
+    }
+    .welcome-headline {
+      font: 900 26px/1.3 "Noto Serif SC", serif;
+      color: #1c1c1c;
+      margin-bottom: 10px;
+    }
+    .welcome-sub {
+      font: 400 14px/1.6 system-ui, sans-serif;
+      color: #888;
+      margin-bottom: 28px;
+    }
+    .welcome-search-wrap {
+      position: relative;
+    }
+    .welcome-search-wrap input {
+      width: 100%;
+      padding: 12px 44px 12px 16px;
+      border: none;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.92);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.10);
+      font: 400 15px system-ui, sans-serif;
+      color: #1c1c1c;
+      outline: none;
+    }
+    .welcome-search-wrap input::placeholder { color: #aaa; }
+    .welcome-search-wrap .welcome-search-icon {
+  position: absolute;
+  right: 50px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #1a6e5c;
+  font-size: 16px;
+  pointer-events: none;
+}
+.welcome-locate-btn {
+  position: absolute;
+  right: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #1a6e5c;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.welcome-locate-btn:hover {
+  background: rgba(26, 110, 92, 0.1);
+}
+.welcome-locate-btn:active {
+  background: rgba(26, 110, 92, 0.2);
+}
+    #welcome-results {
+      background: rgba(255,255,255,0.95);
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.10);
+      margin-top: 6px;
+      overflow: hidden;
+      display: none;
+      text-align: left;
+    }
+    #welcome-results .result-item {
+      padding: 10px 16px;
+      font-size: 14px;
+      color: #333;
+      cursor: pointer;
+      border-bottom: 1px solid rgba(0,0,0,0.05);
+    }
+    #welcome-results .result-item:last-child { border-bottom: none; }
+    #welcome-results .result-item:hover { background: rgba(26,110,92,0.08); }
+    .welcome-quick {
+      margin-top: 24px;
+    }
+    .welcome-quick-label {
+      font: 400 12px system-ui, sans-serif;
+      color: #aaa;
+      margin-bottom: 10px;
+    }
+    .welcome-quick-cities {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+    }
+    .welcome-city-tag {
+      padding: 6px 14px;
+      border-radius: 20px;
+      background: rgba(26,110,92,0.08);
+      color: #1a6e5c;
+      font: 600 13px "Noto Serif SC", serif;
+      cursor: pointer;
+      border: none;
+      transition: background 0.15s;
+    }
+    .welcome-city-tag:hover {
+      background: rgba(26,110,92,0.18);
+    }
+    #welcome-screen .lang-switcher {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+    }
+    .welcome-copyright {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2001;
+  font: 400 13px system-ui, -apple-system, sans-serif;
+  color: #999;
+  text-align: center;
+  transition: opacity 0.5s;
+}
+    @media (max-width: 520px) {
+      .welcome-card { padding: 32px 24px 28px; }
+      .welcome-headline { font-size: 21px; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="welcome-screen">
+  <div class="lang-switcher">
+    <select id="welcome-lang-select">
+      <option value="zh-CN">简体中文</option>
+      <option value="zh-TW">繁體中文</option>
+      <option value="ja">日本語</option>
+      <option value="en">English</option>
+    </select>
+  </div>
+  <div class="welcome-card">
+    <div class="welcome-eyebrow" id="welcome-eyebrow">Ox and Horse Escape</div>
+    <div class="welcome-headline" id="welcome-headline">Where can you escape by car?</div>
+    <div class="welcome-sub" id="welcome-sub">Enter your city and explore how far you can drive in a weekend</div>
+    <div class="welcome-search-wrap">
+      <input type="text" id="welcome-input" autocomplete="off" spellcheck="false" placeholder="Search city..." />
+      <span class="welcome-search-icon">⌕</span>
+      <button id="welcome-locate-btn" class="welcome-locate-btn" title="定位当前位置">📍</button>
+    </div>
+    <div id="welcome-results"></div>
+    <div class="welcome-quick">
+      <div class="welcome-quick-label" id="welcome-quick-label">Popular cities</div>
+      <div class="welcome-quick-cities" id="welcome-quick-cities"></div>
+    </div>
+  </div>
+  <div class="welcome-copyright">
+    © 2026 版权所有 | 备案号
+  </div>
+</div>
+
+<div id="map"></div>
+
+<div class="title-overlay" id="title-overlay-card">
+  <div class="title-text">
+    <div class="en">Ox and Horse Escape Plan</div>
+    <h1>牛马逃离计划</h1>
+    <div class="sub" id="title-sub">...</div>
+  </div>
+</div>
+
+<div class="top-controls">
+  <div class="search-box">
+    <input type="text" id="city-search" placeholder="搜索出发城市..." />
+    <div id="search-results"></div>
+  </div>
+  <div class="lang-switcher">
+    <select id="lang-select">
+      <option value="zh-CN">简体中文</option>
+      <option value="zh-TW">繁體中文</option>
+      <option value="en">English</option>
+      <option value="ja">日本語</option>
+    </select>
+  </div>
+</div>
+
+<div class="loading-overlay" id="loading">
+  <div class="loading-box">
+    <div class="spinner"></div>
+    <div id="loading-text">正在加载区划数据...</div>
+  </div>
+</div>
+
+<aside class="legend">
+  <h3>图例</h3>
+  <div class="item"><span class="hatch"></span><span>出发点</span></div>
+  <div class="item"><span class="line-swatch origin"></span><span id="legend-origin">出发市</span></div>
+  <div class="item"><span class="line-swatch prov"></span><span>省界</span></div>
+  <div class="item"><span class="line-swatch city"></span><span>市界</span></div>
+  <div id="band-list"></div>
+</aside>
+
+<div class="info-panel" id="info">
+  <h4 id="info-name"></h4>
+  <div id="info-detail"></div>
+</div>
+
+<div class="bottom-controls">
+  <div class="bottom-input">
+    <input type="text" id="bottom-city-input" placeholder="输入出发城市，开始逃离..." />
+  </div>
+  <div class="bottom-slider">
+    <span class="slider-label" id="slider-time">2.5h</span>
+    <input type="range" id="drive-time-slider" min="0.5" max="5" step="0.1" value="2.5" />
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ── i18n ──
+const LANG_FILES = { 'zh-CN': 'lang/zh-CN.js', 'zh-TW': 'lang/zh-TW.js', en: 'lang/en.js', ja: 'lang/ja.js' };
+
+function t(key, vars) {
+  let s = window.LANG?.[key] || key;
+  if (vars) Object.entries(vars).forEach(([k, v]) => { s = s.replace(`{${k}}`, v); });
+  return s;
+}
+
+function applyLang() {
+  document.documentElement.lang = window.LANG?.code || 'zh-CN';
+  document.querySelector('.title-overlay .en').textContent = t('titleEn');
+  document.querySelector('.title-overlay h1').textContent = t('title');
+  document.getElementById('city-search').placeholder = t('searchPlaceholder');
+  document.querySelector('.legend h3').textContent = t('legend');
+  // legend items: origin, originCity, provinceBorder, cityBorder
+  const legendItems = document.querySelectorAll('.legend > .item');
+  if (legendItems[0]) legendItems[0].querySelector('span:last-child').textContent = t('origin');
+  if (legendItems[1]) legendItems[1].querySelector('span:last-child').textContent = t('originCity', { city: typeof currentCityName !== 'undefined' ? currentCityName : '' });
+  if (legendItems[2]) legendItems[2].querySelector('span:last-child').textContent = t('provinceBorder');
+  if (legendItems[3]) legendItems[3].querySelector('span:last-child').textContent = t('cityBorder');
+  // subtitle and page title — 只在有城市数据时更新，且不覆盖 URL 指定的城市
+  const _urlCity = new URLSearchParams(window.location.search).get('city');
+  if (typeof currentCityName !== 'undefined' && !_urlCity) {
+    document.getElementById('title-sub').textContent = t('subtitle', { city: currentCityName });
+    document.title = t('pageTitle', { city: currentCityName });
+    document.getElementById('legend-origin').textContent = t('originCity', { city: currentCityName });
+  }
+  // 更新欢迎屏文案
+  const wh = document.getElementById('welcome-headline');
+  const ws = document.getElementById('welcome-sub');
+  const wql = document.getElementById('welcome-quick-label');
+  const wi = document.getElementById('welcome-input');
+  if (wh) wh.textContent = t('welcomeHeadline');
+  if (ws) ws.textContent = t('welcomeSub');
+  if (wql) wql.textContent = t('welcomeQuickLabel');
+  if (wi) wi.placeholder = t('searchPlaceholder');
+  // 重建快捷城市标签
+  const cities = window.LANG?.welcomeCities || [];
+  const wrap = document.getElementById('welcome-quick-cities');
+  if (wrap) {
+    wrap.innerHTML = '';
+    cities.forEach(name => {
+      const btn = document.createElement('button');
+      btn.className = 'welcome-city-tag';
+      btn.textContent = name;
+      btn.onclick = () => welcomeSelectCity(name);
+      wrap.appendChild(btn);
+    });
+  }
+}
+
+function loadLang(code) {
+  return new Promise((resolve, reject) => {
+    const old = document.getElementById('lang-script');
+    const s = document.createElement('script');
+    s.id = 'lang-script';
+    s.src = (LANG_FILES[code] || LANG_FILES['zh-CN']) + '?v=2';
+    s.onload = () => { resolve(); };
+    s.onerror = reject;
+    old.parentNode.replaceChild(s, old);
+  });
+}
+
+// 根据浏览器语言自动选择，localStorage 优先
+function detectLang() {
+  const browserLang = (navigator.language || navigator.userLanguage || '').toLowerCase();
+  if (browserLang.startsWith('ja')) return 'ja';
+  if (browserLang.startsWith('zh-tw') || browserLang.startsWith('zh-hk') || browserLang.startsWith('zh-hant')) return 'zh-TW';
+  if (browserLang.startsWith('zh')) return 'zh-CN';
+  if (browserLang.startsWith('en')) return 'en';
+  return 'en'; // 其他语言 fallback 英语
+}
+
+(function() {
+  const saved = localStorage.getItem('lang') || detectLang();
+  const sel = document.getElementById('lang-select');
+  const welcomeSel = document.getElementById('welcome-lang-select');
+  sel.value = saved;
+  if (welcomeSel) welcomeSel.value = saved;
+  if (saved !== 'zh-CN') {
+    loadLang(saved).then(() => {
+      // 确保 DOM 完全就绪后再更新文案
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', applyLang);
+      } else {
+        applyLang();
+      }
+    });
+  } else {
+    // zh-CN 是默认语言文件，DOM 就绪后 apply
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', applyLang);
+    } else {
+      applyLang();
+    }
+  }
+  function onLangChange(code) {
+    localStorage.setItem('lang', code);
+    sel.value = code;
+    if (welcomeSel) welcomeSel.value = code;
+    loadLang(code).then(applyLang);
+  }
+  sel.addEventListener('change', () => onLangChange(sel.value));
+  if (welcomeSel) welcomeSel.addEventListener('change', () => onLangChange(welcomeSel.value));
+})();
+</script>
+<script>
+// ── 色阶 ──
+const colorBands = [
+  { min: 0.0, max: 0.5, color: "#1a6e5c", label: "0–0.5h" },
+  { min: 0.5, max: 1.0, color: "#2d9f83", label: "0.5–1h" },
+  { min: 1.0, max: 1.5, color: "#6bab5e", label: "1–1.5h" },
+  { min: 1.5, max: 2.0, color: "#a3c44d", label: "1.5–2h" },
+  { min: 2.0, max: 2.5, color: "#d4d444", label: "2–2.5h" },
+  { min: 2.5, max: 3.0, color: "#e8c83a", label: "2.5–3h" },
+  { min: 3.0, max: 3.5, color: "#e8a43a", label: "3–3.5h" },
+  { min: 3.5, max: 4.0, color: "#dd7733", label: "3.5–4h" },
+  { min: 4.0, max: 4.5, color: "#cc4422", label: "4–4.5h" },
+  { min: 4.5, max: 5.0, color: "#aa2211", label: "4.5–5h" }
+];
+
+let MAX_DRIVE_HOURS = 2.5; // 超过此时间的区县不显示，可通过滑动条调整
+const MAX_STRAIGHT_KM = 400; // 直线距离上限，防止飞地
+
+// ── 34 个省级行政区 ──
+// 城市核心区坐标校准（Nominatim 对大面积行政区返回几何中心，不是主城区）
+const CITY_CENTERS = {
+  '重庆': [106.55, 29.56],    // 渝中区
+  '北京': [116.40, 39.91],    // 天安门
+  '天津': [117.20, 39.13],    // 和平区
+  '上海': [121.47, 31.23],    // 黄浦区
+  '呼伦贝尔': [119.77, 49.21],
+  '酒泉': [98.49, 39.73],
+  '哈密': [93.51, 42.83],
+  '巴音郭楞': [86.15, 41.77],
+  '阿里': [80.11, 32.50],
+  '那曲': [92.05, 31.48],
+};
+
+const PROVINCES = [
+  { code: 110000, name: "北京", center: [116.41, 39.90] },
+  { code: 120000, name: "天津", center: [117.19, 39.13] },
+  { code: 130000, name: "河北", center: [114.50, 38.04] },
+  { code: 140000, name: "山西", center: [112.55, 37.87] },
+  { code: 150000, name: "内蒙古", center: [111.75, 40.84] },
+  { code: 210000, name: "辽宁", center: [123.43, 41.80] },
+  { code: 220000, name: "吉林", center: [125.33, 43.90] },
+  { code: 230000, name: "黑龙江", center: [126.66, 45.74] },
+  { code: 310000, name: "上海", center: [121.47, 31.23] },
+  { code: 320000, name: "江苏", center: [118.76, 32.06] },
+  { code: 330000, name: "浙江", center: [120.15, 30.26] },
+  { code: 340000, name: "安徽", center: [117.28, 31.86] },
+  { code: 350000, name: "福建", center: [119.30, 26.08] },
+  { code: 360000, name: "江西", center: [115.89, 28.68] },
+  { code: 370000, name: "山东", center: [117.00, 36.67] },
+  { code: 410000, name: "河南", center: [113.65, 34.76] },
+  { code: 420000, name: "湖北", center: [114.34, 30.55] },
+  { code: 430000, name: "湖南", center: [112.98, 28.19] },
+  { code: 440000, name: "广东", center: [113.27, 23.13] },
+  { code: 450000, name: "广西", center: [108.33, 22.84] },
+  { code: 460000, name: "海南", center: [110.35, 20.02] },
+  { code: 500000, name: "重庆", center: [106.50, 29.53] },
+  { code: 510000, name: "四川", center: [104.07, 30.67] },
+  { code: 520000, name: "贵州", center: [106.71, 26.57] },
+  { code: 530000, name: "云南", center: [102.71, 25.05] },
+  { code: 540000, name: "西藏", center: [91.13, 29.65] },
+  { code: 610000, name: "陕西", center: [108.95, 34.27] },
+  { code: 620000, name: "甘肃", center: [103.83, 36.06] },
+  { code: 630000, name: "青海", center: [101.78, 36.62] },
+  { code: 640000, name: "宁夏", center: [106.27, 38.47] },
+  { code: 650000, name: "新疆", center: [87.63, 43.79] },
+  { code: 710000, name: "台湾", center: [121.51, 25.05] },
+  { code: 810000, name: "香港", center: [114.17, 22.32] },
+  { code: 820000, name: "澳门", center: [113.55, 22.20] }
+];
+
+// ── 图例 ──
+const bandList = document.getElementById("band-list");
+colorBands.forEach(b => {
+  const row = document.createElement("div");
+  row.className = "band";
+  row.innerHTML = `<span class="swatch" style="background:${b.color}"></span><span>${b.label}</span>`;
+  bandList.appendChild(row);
+});
+
+// ── 地图初始化 ──
+const map = L.map("map", {
+  center: [30.26, 120.15],
+  zoom: 8,
+  zoomControl: false,
+  attributionControl: true
+});
+
+
+
+L.tileLayer("https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}", {
+  attribution: '高德地图',
+  maxZoom: 18,
+  opacity: 0.3,
+  subdomains: ['1', '2', '3', '4']
+}).addTo(map);
+
+// ── 全局状态 ──
+let currentOrigin = [120.15, 30.26]; // [lng, lat]
+let currentCityName = "杭州";
+let originAdcode = null;
+let driveDataMap = {};       // adcode → { name, time, dist, isOrigin, estimated }
+let allCountyFeatures = [];
+let allGrayFeatures = [];
+let allCityOutlines = [];
+let allGrayCityOutlines = [];
+let labelLayer = L.layerGroup().addTo(map);
+
+// 需要在 switchCity 中清除的图层
+let activeLayers = [];
+
+// ── 预设城市数据 ──
+const PRESET_CITIES = {
+  '北京': { file: 'data/beijing.json', center: [116.40, 39.91] },
+  '上海': { file: 'data/shanghai.json', center: [121.47, 31.23] },
+  '杭州': { file: 'data/hangzhou.json', center: [120.15, 30.26] },
+  '成都': { file: 'data/chengdu.json', center: [104.07, 30.67] },
+  '西安': { file: 'data/xian.json', center: [108.95, 34.27] }
+};
+
+// ── 工具函数 ──
+function haversine(lng1, lat1, lng2, lat2) {
+  const R = 6371, dLat = (lat2 - lat1) * Math.PI / 180, dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function estimateDriveTime(lng, lat) {
+  const dist = haversine(currentOrigin[0], currentOrigin[1], lng, lat);
+  const roadDist = Math.round(dist * 1.35);
+  const time = Math.round(roadDist / 85 * 10) / 10;
+  return { time, dist: roadDist };
+}
+
+function getDriveData(feature) {
+  const code = String(feature?.properties?.adcode || "");
+  if (driveDataMap[code]) return driveDataMap[code];
+  const center = feature?.properties?.centroid || feature?.properties?.center;
+  if (!center || center.length !== 2) return null;
+  const est = estimateDriveTime(center[0], center[1]);
+  return { name: feature?.properties?.name || "", time: est.time, dist: est.dist, estimated: true };
+}
+
+function getBandColor(time) {
+  if (typeof time !== "number") return "#d3d3d3";
+  for (const b of colorBands) {
+    if (time >= b.min && time < b.max) return b.color;
+  }
+  return colorBands[colorBands.length - 1].color;
+}
+
+function fmtTime(t) {
+  return typeof t !== "number" ? "--" : Number.isInteger(t) ? `${t}` : `${t.toFixed(1)}`;
+}
+
+function styleCounty(feature) {
+  const d = getDriveData(feature);
+  return {
+    color: "#fff",
+    weight: 1,
+    opacity: 0.8,
+    fillOpacity: 0.75,
+    fillColor: d ? getBandColor(d.time) : "#d3d3d3"
+  };
+}
+
+// ── Loading ──
+const loadingEl = document.getElementById("loading");
+const loadingText = document.getElementById("loading-text");
+
+function showLoading(msg) {
+  if (welcomeVisible) return; // 欢迎屏显示时不显示 loading
+  loadingText.textContent = msg;
+  loadingEl.classList.add("active");
+}
+function hideLoading() {
+  loadingEl.classList.remove("active");
+}
+
+// ── 信息面板 ──
+const infoPanel = document.getElementById("info");
+const infoName = document.getElementById("info-name");
+const infoDetail = document.getElementById("info-detail");
+
+function showInfo(dd) {
+  if (!dd) { infoPanel.style.display = "none"; return; }
+  const isOrigin = dd.isOrigin || dd.time === 0;
+  infoName.textContent = isOrigin ? `🚗 ${dd.name}（${t('origin')}）` : dd.name;
+  infoDetail.innerHTML = isOrigin
+    ? `<span class="time">${t('originLabel')}</span>`
+    : `<span class="time">🕐 ${fmtTime(dd.time)} ${t('timeUnit')}</span> · ${dd.dist} km${dd.estimated ? ' ' + t('estimated') : ''}`;
+  infoPanel.style.display = "block";
+}
+
+// ── 标签 ──
+function updateLabels() {
+  labelLayer.clearLayers();
+  const zoom = map.getZoom();
+  const bounds = map.getBounds();
+  const placed = [];
+
+  const allFeatures = [
+    ...allCountyFeatures.filter(f => { const d = getDriveData(f); if(!d) return false; if(String(f?.properties?.adcode)===originAdcode) return true; if(d.time>MAX_DRIVE_HOURS) return false; const c=f?.properties?.centroid||f?.properties?.center; if(c){const sd=haversine(currentOrigin[0],currentOrigin[1],c[0],c[1]); if(sd>MAX_STRAIGHT_KM) return false;} return true; }).map(f => ({ f, core: true })),
+    ...allGrayFeatures.map(f => ({ f, core: false }))
+  ];
+
+  allFeatures.sort((a, b) => {
+    const da = getDriveData(a.f);
+    const db = getDriveData(b.f);
+    if (String(a.f?.properties?.adcode) === originAdcode) return -1;
+    if (String(b.f?.properties?.adcode) === originAdcode) return 1;
+    if (a.core && !b.core) return -1;
+    if (!a.core && b.core) return 1;
+    return (da?.time || 99) - (db?.time || 99);
+  });
+
+  // detail: 0=名字, 1=名字+耗时, 2=名字+耗时+距离
+  const cfg = zoom >= 11 ? { fs: 11, fsGray: 9, minD: 12, detail: 2 }
+            : zoom >= 10 ? { fs: 10, fsGray: 8, minD: 16, detail: 2 }
+            : zoom >= 9  ? { fs: 9,  fsGray: 7, minD: 18, detail: 2 }
+            : zoom >= 8  ? { fs: 8,  fsGray: 6, minD: 14, detail: 1 }
+            : zoom >= 7  ? { fs: 7,  fsGray: 5, minD: 10, detail: 1 }
+            :              { fs: 6,  fsGray: 5, minD: 8,  detail: 0 };
+
+  for (const { f, core } of allFeatures) {
+    const driveInfo = getDriveData(f);
+    const name = driveInfo?.name || f?.properties?.name || "";
+    if (!name) continue;
+
+    const center = f?.properties?.centroid || f?.properties?.center;
+    if (!center || center.length !== 2) continue;
+    const ll = L.latLng(center[1], center[0]);
+    if (!bounds.contains(ll)) continue;
+
+    const pt = map.latLngToContainerPoint(ll);
+    if (placed.some(p => Math.abs(p.x - pt.x) < cfg.minD && Math.abs(p.y - pt.y) < cfg.minD)) continue;
+    placed.push(pt);
+
+    let text, fs, cls;
+    if (core && driveInfo) {
+      fs = cfg.fs;
+      cls = "county-label";
+      if (cfg.detail >= 2) {
+        text = `${name}\n${fmtTime(driveInfo.time)}h / ${driveInfo.dist}km`;
+      } else if (cfg.detail >= 1) {
+        text = `${name}\n${fmtTime(driveInfo.time)}h`;
+      } else {
+        text = name;
+      }
+    } else {
+      fs = cfg.fsGray;
+      cls = "county-label gray";
+      text = name;
+    }
+
+    L.marker(ll, {
+      interactive: false,
+      icon: L.divIcon({
+        className: cls,
+        html: `<span style="font-size:${fs}px">${text}</span>`,
+        iconSize: [1,1]
+      })
+    }).addTo(labelLayer);
+  }
+}
+
+// ── 搜索 ──
+const searchInput = document.getElementById("city-search");
+const searchResults = document.getElementById("search-results");
+let searchTimer = null;
+let isSelectingCity = false; // 标记是否正在选择城市
+
+searchInput.addEventListener("input", () => {
+  if (isSelectingCity) return; // 如果正在选择城市，不触发搜索
+  clearTimeout(searchTimer);
+  const q = searchInput.value.trim();
+  if (!q) { searchResults.style.display = "none"; return; }
+  searchTimer = setTimeout(() => searchCity(q), 400);
+});
+
+// 阻止搜索结果框内部的点击事件冒泡，防止被外部点击监听器关闭
+searchResults.addEventListener("click", (e) => {
+  e.stopPropagation();
+});
+
+async function searchCity(query) {
+  try {
+    const key = '6db4289a25ce8104d8a6607311568479';
+    // 使用POI搜索API获取更详细的地址信息
+    const url = `https://restapi.amap.com/v3/place/text?key=${key}&keywords=${encodeURIComponent(query)}&city=&citylimit=false&extensions=base&offset=10`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.status !== '1' || !data.pois || data.pois.length === 0) {
+      // 如果POI搜索没有结果，回退到行政区划搜索
+      const url2 = `https://restapi.amap.com/v3/config/district?key=${key}&keywords=${encodeURIComponent(query)}&subdistrict=0&extensions=base`;
+      const res2 = await fetch(url2);
+      const data2 = await res2.json();
+      if (data2.status !== '1' || !data2.districts || data2.districts.length === 0) {
+        searchResults.innerHTML = `<div class="result-item" style="color:#888">${t('noResult')}</div>`;
+        searchResults.style.display = "block";
+        return;
+      }
+      searchResults.innerHTML = data2.districts.map((item, i) => {
+        const name = item.name;
+        const center = item.center; // "lng,lat" 格式
+        const level = item.level; // 行政区划级别
+        const sub = level === 'city' ? '城市' : level === 'province' ? '省份' : '区县';
+        return `<div class="result-item" data-idx="${i}" data-lng="${center.split(',')[0]}" data-lat="${center.split(',')[1]}" data-name="${name}" data-cc="cn">
+          <div>${name}</div>
+          <div class="result-sub">${sub}</div>
+        </div>`;
+      }).join("");
+      searchResults.style.display = "block";
+      searchResults.querySelectorAll(".result-item[data-lng]").forEach(el => {
+        el.addEventListener("click", (e) => {
+          e.stopPropagation(); // 阻止事件冒泡
+          const lng = parseFloat(el.dataset.lng);
+          const lat = parseFloat(el.dataset.lat);
+          const name = el.dataset.name;
+          const cc = el.dataset.cc;
+          isSelectingCity = true; // 标记正在选择城市
+          searchInput.value = name; // 更新输入框
+          searchResults.style.display = "none"; // 隐藏结果
+          showLoading(t('loading'));
+          switchCity(name, lng, lat, cc);
+          setTimeout(() => { isSelectingCity = false; }, 100); // 延迟重置标记
+        });
+      });
+      return;
+    }
+    searchResults.innerHTML = data.pois.map((item, i) => {
+      const name = item.name;
+      const location = item.location; // "lng,lat" 格式
+      // 构建完整地址
+      let fullAddress = '';
+      if (item.pname && item.cityname && item.adname && item.address) {
+        fullAddress = `${item.pname}${item.cityname}${item.adname}${item.address}`;
+      } else if (item.pname && item.cityname && item.adname) {
+        fullAddress = `${item.pname}${item.cityname}${item.adname}${item.name}`;
+      } else if (item.pname && item.adname) {
+        fullAddress = `${item.pname}${item.adname}${item.name}`;
+      } else {
+        fullAddress = item.address || item.name;
+      }
+      return `<div class="result-item" data-idx="${i}" data-lng="${location.split(',')[0]}" data-lat="${location.split(',')[1]}" data-name="${name}" data-cc="cn">
+        <div>${name}</div>
+        <div class="result-sub">${fullAddress}</div>
+      </div>`;
+    }).join("");
+    searchResults.style.display = "block";
+    searchResults.querySelectorAll(".result-item[data-lng]").forEach(el => {
+      el.addEventListener("click", (e) => {
+        e.stopPropagation(); // 阻止事件冒泡
+        const lng = parseFloat(el.dataset.lng);
+        const lat = parseFloat(el.dataset.lat);
+        const name = el.dataset.name;
+        const cc = el.dataset.cc;
+        isSelectingCity = true; // 标记正在选择城市
+        searchInput.value = name; // 更新输入框
+        searchResults.style.display = "none"; // 隐藏结果
+        showLoading(t('loading'));
+        switchCity(name, lng, lat, cc);
+        setTimeout(() => { isSelectingCity = false; }, 100); // 延迟重置标记
+      });
+    });
+  } catch(e) {
+    console.error('搜索失败:', e);
+    searchResults.innerHTML = `<div class="result-item" style="color:#888">${t('searchFailed')}</div>`;
+    searchResults.style.display = "block";
+  }
+}
+
+// 点击外部关闭搜索结果
+document.addEventListener("click", e => {
+  if (!e.target.closest(".search-box")) searchResults.style.display = "none";
+});
+
+// ── 数据加载 ──
+// 高德地图 API：获取行政区域数据
+function geoURL(code) {
+  const key = '6db4289a25ce8104d8a6607311568479';
+  return `https://restapi.amap.com/v3/config/district?key=${key}&keywords=${code}&subdistrict=3&extensions=all`;
+}
+
+async function fetchJSON(url, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!r.ok) throw new Error(url);
+    return r.json();
+  } catch(e) {
+    clearTimeout(timer);
+    throw e;
+  }
+}
+
+// 并发控制：最多同时 N 个请求
+async function parallelLimit(tasks, limit = 5) {
+  const results = [];
+  let i = 0;
+  async function worker() {
+    while (i < tasks.length) {
+      const idx = i++;
+      results[idx] = await tasks[idx]();
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, () => worker()));
+  return results;
+}
+
+// 加载省下面所有市 → 每个市的区县
+// 直辖市 adcode（省级 _full 直接返回区级，不需要再往下钻）
+const DIRECT_MUNICIPALITIES = new Set([110000, 120000, 310000, 500000]);
+
+// 使用 DataV API 获取完整的 GeoJSON 数据
+async function loadDataVGeoJSON(adcode) {
+  const url = `https://geo.datav.aliyun.com/areas_v3/bound/${adcode}_full.json`;
+  console.log('加载 DataV 数据:', url);
+  try {
+    const res = await fetchJSON(url);
+    return res;
+  } catch(e) {
+    console.warn('DataV API 加载失败:', e);
+    return null;
+  }
+}
+
+async function loadProvinceCounties(provAdcode) {
+  try {
+    console.log('加载省份:', provAdcode);
+    
+    // 使用 DataV API 加载省份数据
+    const provJson = await loadDataVGeoJSON(provAdcode);
+    if (!provJson) {
+      console.error('无法加载省份数据:', provAdcode);
+      return { provAdcode, provOutline: null, cityResults: [] };
+    }
+    
+    const provFeatures = provJson.features || [];
+    console.log('省份特征数量:', provFeatures.length);
+    
+    const provOutline = provFeatures.find(f => Number(f?.properties?.adcode) === provAdcode) || null;
+    console.log('找到省份轮廓:', provOutline ? '是' : '否');
+
+    // 直辖市：省级返回的直接是区县
+    if (DIRECT_MUNICIPALITIES.has(provAdcode)) {
+      const districts = provFeatures.filter(f => Number(f?.properties?.adcode) !== provAdcode);
+      console.log('直辖市区县数量:', districts.length);
+      return {
+        provAdcode, provOutline,
+        cityResults: [{ adcode: provAdcode, counties: districts, outline: provOutline }]
+      };
+    }
+
+    // 普通省：先提取城市，再为每个城市加载区县
+    const cities = provFeatures.filter(f => {
+      const adcode = Number(f?.properties?.adcode || 0);
+      return adcode !== provAdcode && String(adcode).endsWith('00');
+    });
+    console.log('找到城市数量:', cities.length);
+
+    const cityTasks = cities.map(city => async () => {
+      const cityCode = Number(city?.properties?.adcode);
+      const cityName = city?.properties?.name || '';
+      console.log('加载城市:', cityName, cityCode);
+      
+      const cityJson = await loadDataVGeoJSON(cityCode);
+      if (!cityJson) {
+        console.warn('无法加载城市数据:', cityName, cityCode);
+        return { adcode: cityCode, counties: [city], outline: city };
+      }
+      
+      const cityFeatures = cityJson.features || [];
+      const counties = cityFeatures.filter(f => Number(f?.properties?.adcode) !== cityCode);
+      
+      console.log('城市:', cityName, '区县数量:', counties.length);
+      return { 
+        adcode: cityCode, 
+        counties: counties.length > 0 ? counties : [city], 
+        outline: city 
+      };
+    });
+    
+    const cityResults = await parallelLimit(cityTasks, 3);
+    console.log('城市结果数量:', cityResults.length);
+
+    return { provAdcode, provOutline, cityResults };
+  } catch(e) {
+    console.error('加载省份数据失败:', e);
+    return { provAdcode, provOutline: null, cityResults: [] };
+  }
+}
+
+// 加载省级轮廓（市级，不展开区县）
+async function loadProvinceCities(provAdcode) {
+  try {
+    console.log('加载省份城市:', provAdcode);
+    const provJson = await loadDataVGeoJSON(provAdcode);
+    if (!provJson) {
+      console.error('无法加载省份数据:', provAdcode);
+      return { provAdcode, provOutline: null, cities: [] };
+    }
+    
+    const provFeatures = provJson.features || [];
+    const provOutline = provFeatures.find(f => Number(f?.properties?.adcode) === provAdcode) || null;
+    const cities = provFeatures.filter(f => {
+      const adcode = Number(f?.properties?.adcode || 0);
+      return adcode !== provAdcode && String(adcode).endsWith('00');
+    });
+    return { provAdcode, provOutline, cities };
+  } catch(e) {
+    console.error('加载省份城市失败:', e);
+    return { provAdcode, provOutline: null, cities: [] };
+  }
+}
+
+// ── OSRM 批量驾车时间 ──
+async function fetchOSRMBatch(originLng, originLat, destinations) {
+  // destinations: [{ adcode, lng, lat, name }]
+  // 每批最多 50 个
+  const results = {};
+  const batchSize = 50;
+
+  for (let i = 0; i < destinations.length; i += batchSize) {
+    const batch = destinations.slice(i, i + batchSize);
+    const coords = `${originLng},${originLat};` + batch.map(d => `${d.lng},${d.lat}`).join(";");
+    const destIndices = batch.map((_, j) => j + 1).join(";");
+    const url = `https://router.project-osrm.org/table/v1/driving/${coords}?sources=0&destinations=${destIndices}&annotations=duration,distance`;
+
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.code === "Ok") {
+        const durations = data.durations[0];
+        const distances = data.distances[0];
+        batch.forEach((d, j) => {
+          const timeSec = durations[j];
+          const distM = distances[j];
+          if (timeSec != null && timeSec > 0) {
+            results[d.adcode] = {
+              name: d.name,
+              time: Math.round(timeSec / 360) / 10,
+              dist: Math.round(distM / 1000)
+            };
+          }
+        });
+      }
+    } catch(e) {}
+
+    // 批次间间隔
+    if (i + batchSize < destinations.length) {
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
+  return results;
+}
+
+// ── 渲染地图 ──
+function renderMap(skipFitBounds = false) {
+  // 清除旧图层（OSRM 刷新时需要重新渲染）
+  const savedProvOutlines = activeLayers._provOutlines;
+  // 暴力清除所有非底图图层，确保没有残留色块
+  map.eachLayer(layer => {
+    if (layer !== labelLayer && !layer._url) { // 保留 tileLayer（有 _url）和 labelLayer
+      map.removeLayer(layer);
+    }
+  });
+  activeLayers = [];
+  activeLayers._provOutlines = savedProvOutlines;
+  labelLayer.clearLayers();
+
+  // 找 origin adcode
+  originAdcode = null;
+  let minDist = Infinity;
+  for (const f of allCountyFeatures) {
+    const c = f?.properties?.centroid || f?.properties?.center;
+    if (c) {
+      const d = haversine(currentOrigin[0], currentOrigin[1], c[0], c[1]);
+      if (d < minDist) { minDist = d; originAdcode = String(f?.properties?.adcode || ""); }
+    }
+  }
+
+  // 标记 origin
+  if (originAdcode && driveDataMap[originAdcode]) {
+    driveDataMap[originAdcode].isOrigin = true;
+    driveDataMap[originAdcode].time = 0;
+    driveDataMap[originAdcode].dist = 0;
+  }
+
+  // 灰色背景
+  if (allGrayFeatures.length) {
+    const grayLayer = L.geoJSON({ type: "FeatureCollection", features: allGrayFeatures }, {
+      style: {
+        color: "#ccc",
+        weight: 0.5,
+        opacity: 0.5,
+        fillColor: "#e5e2da",
+        fillOpacity: 0.45
+      },
+      onEachFeature(feature, layer) {
+        const name = feature?.properties?.name || "";
+        if (name) layer.bindTooltip(name, { sticky: true });
+      }
+    }).addTo(map);
+    activeLayers.push(grayLayer);
+  }
+
+  // 灰色区域的市界
+  if (allGrayCityOutlines.length) {
+    const grayBorderLayer = L.geoJSON({ type: "FeatureCollection", features: allGrayCityOutlines.filter(Boolean) }, {
+      style: { color: "rgba(255,255,255,0.5)", weight: 1.5, opacity: 0.6, fill: false },
+      interactive: false
+    }).addTo(map);
+    activeLayers.push(grayBorderLayer);
+  }
+
+  // 过滤掉超过 MAX_DRIVE_HOURS 或直线距离过远的区县（避免飞地）
+  const visibleFeatures = allCountyFeatures.filter(f => {
+    const d = getDriveData(f);
+    if (!d) return false;
+    if (String(f?.properties?.adcode) === originAdcode) return true;
+    if (d.time > MAX_DRIVE_HOURS) return false;
+    // 直线距离检查：防止远处孤立区县通过高速连通导致飞地
+    const center = f?.properties?.centroid || f?.properties?.center;
+    if (center) {
+      const straightDist = haversine(currentOrigin[0], currentOrigin[1], center[0], center[1]);
+      if (straightDist > MAX_STRAIGHT_KM) return false;
+    }
+    return true;
+  });
+
+  // 县区填充层
+  const countyLayer = L.geoJSON({ type: "FeatureCollection", features: visibleFeatures }, {
+    style: styleCounty,
+    onEachFeature(feature, layer) {
+      const code = String(feature?.properties?.adcode || "");
+      const isOriginCounty = (code === originAdcode);
+
+      layer.on("mouseover", () => {
+        countyLayer.resetStyle();
+        layer.setStyle({ weight: 2.5, color: "#333", fillOpacity: 0.9 });
+        layer.bringToFront();
+        activeLayers.forEach(l => { if (l._isCityBorder || l._isProvBorder) l.bringToFront(); });
+        showInfo(getDriveData(feature));
+        // 恢复 origin hatch
+        countyLayer.eachLayer(l => {
+          const lc = String(l.feature?.properties?.adcode || "");
+          if (lc === originAdcode && l._path && lc !== code) {
+            l._path.setAttribute("fill", "url(#originHatch)");
+            l._path.setAttribute("fill-opacity", "1");
+          }
+        });
+      });
+      layer.on("mouseout", () => {
+        countyLayer.resetStyle(layer);
+        infoPanel.style.display = "none";
+        if (isOriginCounty && layer._path) {
+          layer._path.setAttribute("fill", "url(#originHatch)");
+          layer._path.setAttribute("fill-opacity", "1");
+        }
+      });
+      layer.on("click", e => {
+        L.DomEvent.stopPropagation(e);
+        showInfo(getDriveData(feature));
+      });
+
+      if (isOriginCounty) {
+        layer.on("add", () => {
+          if (layer._path) {
+            layer._path.style.fill = "url(#originHatch)";
+            layer._path.style.fillOpacity = "1";
+          }
+        });
+      }
+    }
+  }).addTo(map);
+  activeLayers.push(countyLayer);
+
+  // 点击地图关闭面板
+  map.on("click", () => {
+    infoPanel.style.display = "none";
+    countyLayer.resetStyle();
+  });
+  map.getContainer().addEventListener("mouseleave", () => {
+    countyLayer.resetStyle();
+    infoPanel.style.display = "none";
+  });
+
+  // 市界
+  const cityBorderLayer = L.geoJSON({ type: "FeatureCollection", features: allCityOutlines.filter(Boolean) }, {
+    style(f) {
+      const originCityCode = originAdcode ? Number(originAdcode.slice(0,4) + "00") : 0;
+      const isOrigin = Number(f?.properties?.adcode) === originCityCode;
+      return { color: isOrigin ? "#e88" : "rgba(255,255,255,0.5)", weight: isOrigin ? 2.5 : 1.5, opacity: isOrigin ? 0.8 : 0.6, fill: false };
+    },
+    interactive: false
+  }).addTo(map);
+  cityBorderLayer._isCityBorder = true;
+  activeLayers.push(cityBorderLayer);
+
+  // 省界
+  const provinceOutlines = activeLayers._provOutlines || [];
+  if (provinceOutlines.length) {
+    const provBorderLayer = L.geoJSON({ type: "FeatureCollection", features: provinceOutlines }, {
+      style: { color: "#888", weight: 2, dashArray: "6 6", fill: false, opacity: 0.8 },
+      interactive: false
+    }).addTo(map);
+    provBorderLayer._isProvBorder = true;
+    activeLayers.push(provBorderLayer);
+  }
+
+  // SVG hatch
+  setTimeout(() => {
+    const svg = map.getPanes().overlayPane.querySelector("svg");
+    if (svg) {
+      let defs = svg.querySelector("defs") || svg.insertBefore(document.createElementNS("http://www.w3.org/2000/svg", "defs"), svg.firstChild);
+      if (!svg.querySelector("#originHatch")) {
+        const pat = document.createElementNS("http://www.w3.org/2000/svg", "pattern");
+        pat.setAttribute("id", "originHatch");
+        pat.setAttribute("patternUnits", "userSpaceOnUse");
+        pat.setAttribute("width", "8");
+        pat.setAttribute("height", "8");
+        pat.setAttribute("patternTransform", "rotate(45)");
+        const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        bg.setAttribute("width", "8"); bg.setAttribute("height", "8"); bg.setAttribute("fill", "#fff");
+        const ln = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        ln.setAttribute("x", "0"); ln.setAttribute("y", "0");
+        ln.setAttribute("width", "4"); ln.setAttribute("height", "8"); ln.setAttribute("fill", "#aa2211");
+        pat.appendChild(bg); pat.appendChild(ln);
+        defs.appendChild(pat);
+      }
+    }
+  }, 200);
+
+  // fitBounds（仅首次渲染，OSRM 刷新时不动视野）— 只基于可见区县
+  if (!skipFitBounds && visibleFeatures.length) {
+    const fitBounds = L.latLngBounds();
+    visibleFeatures.forEach(f => {
+      const c = f?.properties?.centroid || f?.properties?.center;
+      if (c) fitBounds.extend(L.latLng(c[1], c[0]));
+    });
+    if (fitBounds.isValid()) map.fitBounds(fitBounds, { padding: [30, 30] });
+  }
+
+  updateLabels();
+  map.off("zoomend moveend", updateLabels);
+  map.on("zoomend moveend", updateLabels);
+}
+
+// ── 预设城市快速加载 ──
+async function loadPresetCity(name, lng, lat, dataFile) {
+  // 1. 清除旧图层
+  for (const layer of activeLayers) {
+    map.removeLayer(layer);
+  }
+  activeLayers = [];
+  labelLayer.clearLayers();
+  map.off("click");
+  infoPanel.style.display = "none";
+
+  // 2. 更新 origin
+  currentOrigin = [lng, lat];
+  currentCityName = name;
+  
+  // 立即更新地图视图到新的城市位置
+  map.setView([lat, lng], 8);
+
+  // 3. 更新标题 + URL
+  document.getElementById("title-sub").textContent = t('subtitle', { city: name });
+  document.getElementById("legend-origin").textContent = t('originCity', { city: name });
+  document.title = t('pageTitle', { city: name });
+  updateURL(name);
+
+  // 4. loading
+  showLoading(t('loading'));
+
+  try {
+    const res = await fetch(dataFile);
+    const data = await res.json();
+    
+    allCountyFeatures = data.features || [];
+    driveDataMap = data.driveData || {};
+    allGrayFeatures = [];
+    allCityOutlines = [];
+    allGrayCityOutlines = [];
+    activeLayers._provOutlines = [];
+
+    renderMap();
+    hideLoading();
+  } catch(e) {
+    console.error('Failed to load preset data:', e);
+    hideLoading();
+  }
+}
+
+// ── 城市切换核心逻辑 ──
+// 用 Overpass 查 place=city node 获取城市核心坐标（政治经济中心而非几何中心）
+async function getCityCenter(name, lng, lat) {
+  try {
+    const r = 0.5; // 搜索半径 ~50km
+    const query = `[out:json][timeout:5];node["place"~"city|town"]["name"~"${name}"](${lat-r},${lng-r},${lat+r},${lng+r});out 1;`;
+    const res = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST", body: "data=" + encodeURIComponent(query)
+    });
+    const data = await res.json();
+    if (data.elements && data.elements.length > 0) {
+      const e = data.elements[0];
+      return [e.lon, e.lat];
+    }
+  } catch(e) {}
+  return null; // fallback 用原坐标
+}
+
+async function switchCity(name, lng, lat, countryCode) {
+  // 新的 AbortController，取消旧请求
+  if (currentCityAbortController) currentCityAbortController.abort();
+  currentCityAbortController = new AbortController();
+  const signal = currentCityAbortController.signal;
+
+  // 0. 检查是否为预设城市（快速加载）
+  const preset = PRESET_CITIES[name];
+  if (preset) {
+    lng = preset.center[0];
+    lat = preset.center[1];
+    return await loadPresetCity(name, lng, lat, preset.file);
+  }
+
+  // 0.1 校准城市中心坐标（Nominatim 对大面积城市返回几何中心，不是主城区）
+  const corrected = CITY_CENTERS[name] || CITY_CENTERS[name.replace(/市$/, '').replace(/白族自治州$/, '').replace(/自治州$/, '')];
+  if (corrected) {
+    lng = corrected[0]; lat = corrected[1];
+  } else {
+    const osm = await getCityCenter(name.replace(/市$/, ''), lng, lat);
+    if (osm) { lng = osm[0]; lat = osm[1]; }
+  }
+
+  // 1. 清除旧图层
+  for (const layer of activeLayers) {
+    map.removeLayer(layer);
+  }
+  activeLayers = [];
+  labelLayer.clearLayers();
+  map.off("click");
+  infoPanel.style.display = "none";
+
+  // 2. 更新 origin
+  currentOrigin = [lng, lat];
+  currentCityName = name;
+  
+  // 立即更新地图视图到新的城市位置
+  map.setView([lat, lng], 8);
+
+  // 3. 更新标题 + URL（四处同步）
+  document.getElementById("title-sub").textContent = t('subtitle', { city: name });
+  document.getElementById("legend-origin").textContent = t('originCity', { city: name });
+  document.title = t('pageTitle', { city: name });
+  updateURL(name);
+
+  // 4. loading
+  showLoading(t('loading'));
+
+  // 5. 判断是否在中国范围内
+  const isChina = countryCode === 'cn' || (!countryCode && lat > 17 && lat < 55 && lng > 73 && lng < 136);
+
+  allCountyFeatures = [];
+  allGrayFeatures = [];
+  allCityOutlines = [];
+  allGrayCityOutlines = [];
+  driveDataMap = {};
+  const provinceOutlines = [];
+
+  if (isChina) {
+    // 中国：用 DataV API
+    const nearProvinces = [];
+    for (const prov of PROVINCES) {
+      if (prov.code >= 710000) continue;
+      const dist = haversine(lng, lat, prov.center[0], prov.center[1]);
+      if (dist < 800) nearProvinces.push(prov); // 800km 确保覆盖大省边缘区县
+    }
+
+    const nearData = await parallelLimit(nearProvinces.map(p => () => loadProvinceCounties(p.code)), 3);
+
+    for (const prov of nearData) {
+      if (prov.provOutline) provinceOutlines.push(prov.provOutline);
+      for (const city of prov.cityResults) {
+        allCityOutlines.push(city.outline);
+        for (const county of city.counties) {
+          allCountyFeatures.push(county);
+          const code = String(county?.properties?.adcode || "");
+          const cname = county?.properties?.name || "";
+          const center = county?.properties?.centroid || county?.properties?.center;
+          if (center) {
+            const est = estimateDriveTime(center[0], center[1]);
+            driveDataMap[code] = { name: cname, time: est.time, dist: est.dist, estimated: true };
+          }
+        }
+        if (city.counties.length === 0 && city.outline) {
+          allCountyFeatures.push(city.outline);
+          const code = String(city.outline?.properties?.adcode || "");
+          const cname = city.outline?.properties?.name || "";
+          const center = city.outline?.properties?.centroid || city.outline?.properties?.center;
+          if (center) {
+            const est = estimateDriveTime(center[0], center[1]);
+            driveDataMap[code] = { name: cname, time: est.time, dist: est.dist, estimated: true };
+          }
+        }
+      }
+    }
+  } else {
+    // 海外：用 Overpass API 获取行政边界
+    showLoading(t('loadingOverseas'));
+
+    // 根据国家选择合适的行政级别
+    const isJapan = countryCode === 'jp';
+    const isAustralia = countryCode === 'au';
+    // 欧洲国家列表（level 8 = 市/区/镇，统一处理）
+    const EUROPE_CODES = new Set(['gb','fr','de','it','es','pt','nl','be','at','ch','pl','cz','se','no','dk','fi','ie','hu','ro','bg','hr','sk','si','lt','lv','ee','lu','gr']);
+    const isEurope = EUROPE_CODES.has(countryCode);
+
+    const queries = isJapan ? [
+      // 日本：level 4 = 都道府県, level 7 = 市区町村, level 8 = 区/町（より詳細）
+      { radius: 400000, levels: "4", labelKey: "loadingAdmin" },
+      { radius: 400000, levels: "7", labelKey: "loadingDetail" },
+      { radius: 200000, levels: "8", labelKey: "loadingDetail" }
+    ] : isAustralia ? [
+      // 澳大利亚：level 6 = Local Government Area（Council），半径缩小避免数据过大
+      { radius: 300000, levels: "6", labelKey: "loadingAdmin" }
+    ] : isEurope ? [
+      // 欧洲：level 4 补充城市州(柏林/汉堡等), level 6 = 省/郡, level 8 = 市镇/Borough
+      { radius: 100000, levels: "4|5", labelKey: "loadingAdmin" },
+      { radius: 400000, levels: "6", labelKey: "loadingAdmin" },
+      { radius: 400000, levels: "8", labelKey: "loadingDetail" }
+    ] : [
+      // 其他国家
+      { radius: 400000, levels: "5|6", labelKey: "loadingAdmin" },
+      { radius: 400000, levels: "4", labelKey: "loadingAdmin", fallback: true },
+      { radius: 300000, levels: "7", labelKey: "loadingDetail" },
+      { radius: 150000, levels: "8", labelKey: "loadingDetail" }
+    ];
+
+    for (const q of queries) {
+      // fallback 查询只在前面数据太少时才执行
+      if (q.fallback && allCountyFeatures.length >= 10) continue;
+      showLoading(t(q.labelKey));
+      const query = `[out:json][timeout:90];
+        relation["boundary"="administrative"]["admin_level"~"^(${q.levels})$"]
+        (around:${q.radius},${lat},${lng});
+        out geom;`;
+
+      try {
+        const res = await fetch("https://overpass-api.de/api/interpreter", {
+          method: "POST",
+          body: "data=" + encodeURIComponent(query)
+        });
+        const data = await res.json();
+
+        if (data.elements) {
+          const seenIds = new Set(allCountyFeatures.map(f => f.properties.adcode));
+
+          data.elements.forEach(el => {
+            if (el.type !== "relation" || !el.members) return;
+            const rCode = String(el.id);
+            if (seenIds.has(rCode)) return; // 去重
+
+            // 从 Overpass geom 构建 GeoJSON — 合并 outer ways 成环
+            const outerWays = el.members.filter(m => m.type === "way" && m.role === "outer" && m.geometry);
+            if (!outerWays.length) return;
+
+            // 将多个 way 首尾相连成完整环（健壮版）
+            const segments = outerWays.map(w => w.geometry.map(p => [p.lon, p.lat]));
+            const rings = [];
+
+            function ptsClose(a, b) {
+              return Math.abs(a[0]-b[0]) < 0.0001 && Math.abs(a[1]-b[1]) < 0.0001;
+            }
+
+            const remaining = segments.map((s,i) => i);
+            while (remaining.length > 0) {
+              let ring = [...segments[remaining.shift()]];
+              let changed = true;
+              while (changed) {
+                changed = false;
+                for (let j = remaining.length - 1; j >= 0; j--) {
+                  const seg = segments[remaining[j]];
+                  const rEnd = ring[ring.length - 1];
+                  const rStart = ring[0];
+                  if (ptsClose(rEnd, seg[0])) {
+                    ring.push(...seg.slice(1));
+                    remaining.splice(j, 1); changed = true;
+                  } else if (ptsClose(rEnd, seg[seg.length - 1])) {
+                    ring.push(...[...seg].reverse().slice(1));
+                    remaining.splice(j, 1); changed = true;
+                  } else if (ptsClose(rStart, seg[seg.length - 1])) {
+                    ring.unshift(...seg.slice(0, -1));
+                    remaining.splice(j, 1); changed = true;
+                  } else if (ptsClose(rStart, seg[0])) {
+                    ring.unshift(...[...seg].reverse().slice(0, -1));
+                    remaining.splice(j, 1); changed = true;
+                  }
+                }
+              }
+              rings.push(ring);
+            }
+
+            // 如果拼接完全失败，用各段单独作为 polygon
+            if (!rings.length && segments.length) {
+              segments.forEach(s => rings.push(s));
+            }
+            if (!rings.length) return;
+
+            const geom = rings.length === 1
+              ? { type: "Polygon", coordinates: [rings[0]] }
+              : { type: "MultiPolygon", coordinates: rings.map(r => [r]) };
+
+            // 计算质心
+            const allPts = rings[0];
+            let sumLng = 0, sumLat = 0;
+            allPts.forEach(c => { sumLng += c[0]; sumLat += c[1]; });
+            const centroid = [sumLng / allPts.length, sumLat / allPts.length];
+
+            // 名称优先级：中文 > 英文 > 原名
+            const rName = el.tags?.["name:zh"] || el.tags?.["name:en"] || el.tags?.name || "";
+            const est = estimateDriveTime(centroid[0], centroid[1]);
+
+            allCountyFeatures.push({
+              type: "Feature",
+              properties: { name: rName, adcode: rCode, centroid, center: centroid },
+              geometry: geom
+            });
+            driveDataMap[rCode] = { name: rName, time: est.time, dist: est.dist, estimated: true };
+            seenIds.add(rCode);
+          });
+        }
+      } catch (e) {
+        console.error("Overpass API error:", e);
+      }
+    }
+  }
+
+  activeLayers._provOutlines = provinceOutlines;
+
+  // 8. 检查本地缓存（用城市坐标作为 key）
+  const cacheKey = `drive_${lng.toFixed(2)}_${lat.toFixed(2)}`;
+  let cached = null;
+  try { cached = JSON.parse(localStorage.getItem(cacheKey)); } catch(e) {}
+
+  if (cached && typeof cached === 'object' && Object.keys(cached).length > 0) {
+    // 有缓存：直接用缓存的 OSRM 数据
+    for (const [code, data] of Object.entries(cached)) {
+      if (driveDataMap[code]) {
+        driveDataMap[code] = { ...driveDataMap[code], ...data, estimated: false };
+      }
+    }
+    renderMap();
+    hideLoading();
+    updateURL(name);
+  } else {
+    // 无缓存：先用估算数据渲染，再 OSRM 精确化
+    renderMap();
+    hideLoading();
+    updateURL(name);
+
+    // 9. OSRM 批量计算真实驾车时间（逐批更新渲染）
+    const destinations = [];
+    for (const f of allCountyFeatures) {
+      const code = String(f?.properties?.adcode || "");
+      const center = f?.properties?.centroid || f?.properties?.center;
+      const fname = f?.properties?.name || "";
+      if (center && center.length === 2) {
+        destinations.push({ adcode: code, lng: center[0], lat: center[1], name: fname });
+      }
+    }
+
+    const batchSize = 50;
+    const osrmCache = {};
+    const batches = [];
+    for (let i = 0; i < destinations.length; i += batchSize) {
+      batches.push(destinations.slice(i, i + batchSize));
+    }
+
+    // 串行逐批请求 OSRM，每批完成后刷新
+    showLoading(t('loadingDriveTime', { done: '0', total: String(batches.length) }));
+    for (let bi = 0; bi < batches.length; bi++) {
+      const batch = batches[bi];
+      const coords = `${lng},${lat};` + batch.map(d => `${d.lng},${d.lat}`).join(";");
+      const destIndices = batch.map((_, j) => j + 1).join(";");
+      const url = `https://router.project-osrm.org/table/v1/driving/${coords}?sources=0&destinations=${destIndices}&annotations=duration,distance`;
+      try {
+        if (signal.aborted) break; // 欢迎屏打开，停止
+        const res = await fetch(url, { signal });
+        const data = await res.json();
+        if (data.code === "Ok") {
+          const durations = data.durations[0];
+          const distances = data.distances[0];
+          batch.forEach((d, j) => {
+            const timeSec = durations[j];
+            const distM = distances[j];
+            if (timeSec != null && timeSec > 0) {
+              const result = {
+                name: d.name,
+                time: Math.round(timeSec / 360) / 10,
+                dist: Math.round(distM / 1000)
+              };
+              driveDataMap[d.adcode] = { ...driveDataMap[d.adcode], ...result, estimated: false };
+              osrmCache[d.adcode] = result;
+            } else {
+              // OSRM 返回 null = 无法到达（跨海等），标记为超远
+              driveDataMap[d.adcode] = { ...driveDataMap[d.adcode], time: 999, dist: 0, estimated: false };
+              osrmCache[d.adcode] = { name: d.name, time: 999, dist: 0 };
+            }
+          });
+        }
+      } catch(e) {
+        if (e.name === 'AbortError') break; // 用户回到欢迎屏，停止
+      }
+      if (signal.aborted) break;
+      showLoading(t('loadingDriveTime', { done: String(bi + 1), total: String(batches.length) }));
+      renderMap(true);
+    }
+    if (!signal.aborted) hideLoading();
+
+    // 保存到 localStorage
+    try { localStorage.setItem(cacheKey, JSON.stringify(osrmCache)); } catch(e) {}
+  }
+
+  // 更新 URL
+  updateURL(name);
+}
+
+// ── URL 参数：支持 ?city=xxx ──
+function updateURL(name) {
+  const url = new URL(window.location);
+  url.searchParams.set('city', name);
+  history.replaceState(null, '', url.toString());
+}
+
+// 切换城市时更新 URL
+const _origSwitchCity = switchCity;
+
+// ── 欢迎屏逻辑 ──
+let welcomeVisible = false;
+let currentCityAbortController = null; // 取消当前城市的后台请求
+
+function showWelcome() {
+  const ws = document.getElementById('welcome-screen');
+  if (!ws) return;
+  welcomeVisible = true;
+  ws.classList.remove('hidden');
+  requestAnimationFrame(() => ws.classList.remove('fade-out'));
+  // 清空搜索框
+  const wi = document.getElementById('welcome-input');
+  const wr = document.getElementById('welcome-results');
+  if (wi) wi.value = '';
+  if (wr) wr.style.display = 'none';
+  // 隐藏 loading
+  hideLoading();
+  // 取消后台 OSRM/Overpass 请求
+  if (currentCityAbortController) {
+    currentCityAbortController.abort();
+    currentCityAbortController = null;
+  }
+  // 清除 URL 参数
+  history.replaceState(null, '', '/');
+}
+
+function dismissWelcome() {
+  const ws = document.getElementById('welcome-screen');
+  if (!ws) return;
+  welcomeVisible = false;
+  ws.classList.add('fade-out');
+  setTimeout(() => ws.classList.add('hidden'), 500);
+}
+
+// 点击标题卡片回到欢迎屏
+document.addEventListener('DOMContentLoaded', () => {
+  const card = document.getElementById('title-overlay-card');
+  if (card) card.addEventListener('click', showWelcome);
+});
+
+async function welcomeSelectCity(name) {
+  dismissWelcome();
+  // 立即同步四处：标题、图例、URL、搜索框
+  showLoading(t('loading'));
+  document.getElementById("title-sub").textContent = t('subtitle', { city: name });
+  document.getElementById("legend-origin").textContent = t('originCity', { city: name });
+  document.title = t('pageTitle', { city: name });
+  updateURL(name);
+  document.getElementById('city-search').value = name;
+  // 通过 Nominatim 搜索
+  try {
+    const res = await fetch(`https://restapi.amap.com/v3/place/text?key=6db4289a25ce8104d8a6607311568479&types=150100|150200|150300|150400|150500|150600&city=&children=1&extensions=base&page=1&offset=8&keywords?q=${encodeURIComponent(name)}&format=json&addressdetails=1&limit=1&accept-language=${window.LANG?.code?.startsWith("zh-TW") ? "zh-TW,zh" : window.LANG?.code === "ja" ? "ja" : window.LANG?.code === "zh-CN" ? "zh" : "en"}`, { headers: { 'User-Agent': 'DriveEscape/1.0' } });
+    const data = await res.json();
+    if (data.length > 0) {
+      const item = data[0];
+      const resolved = item.display_name.split(",")[0];
+      const cc = item.address?.country_code || '';
+      document.getElementById('city-search').value = resolved;
+      await switchCity(resolved, parseFloat(item.lon), parseFloat(item.lat), cc);
+      return;
+    }
+  } catch(e) {}
+  await switchCity(name, 0, 0, '');
+}
+
+// 欢迎屏搜索实现
+(function initWelcomeSearch() {
+  const input = document.getElementById('welcome-input');
+  const results = document.getElementById('welcome-results');
+  if (!input) return;
+  
+  let isSelectingCity = false; // 标记是否正在选择城市
+  
+  // 阻止搜索结果框内部的点击事件冒泡
+  results.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+  
+  let timer;
+  input.addEventListener('input', () => {
+    if (isSelectingCity) return; // 如果正在选择城市，不触发搜索
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < 2) { results.style.display = 'none'; return; }
+    timer = setTimeout(async () => {
+      try {
+        const key = '6db4289a25ce8104d8a6607311568479';
+        // 使用POI搜索API获取更详细的地址信息
+        const r = await fetch(`https://restapi.amap.com/v3/place/text?key=${key}&keywords=${encodeURIComponent(q)}&city=&citylimit=false&extensions=base&offset=10`);
+        const data = await r.json();
+        results.innerHTML = '';
+        if (data.status !== '1' || !data.pois || data.pois.length === 0) {
+          // 如果POI搜索没有结果，回退到行政区划搜索
+          const r2 = await fetch(`https://restapi.amap.com/v3/config/district?key=${key}&keywords=${encodeURIComponent(q)}&subdistrict=0&extensions=base`);
+          const data2 = await r2.json();
+          if (data2.status !== '1' || !data2.districts || data2.districts.length === 0) {
+            results.innerHTML = `<div class="result-item" style="color:#888">${t('noResult')}</div>`;
+            results.style.display = 'block'; return;
+          }
+          data2.districts.forEach(item => {
+            const el = document.createElement('div');
+            el.className = 'result-item';
+            const level = item.level;
+            const sub = level === 'city' ? '城市' : level === 'province' ? '省份' : '区县';
+            el.innerHTML = `<div>${item.name}</div><div class="result-sub">${sub}</div>`;
+            el.onclick = async () => {
+              isSelectingCity = true;
+              results.style.display = 'none';
+              const name = item.name;
+              const cc = 'cn';
+              input.value = name;
+              dismissWelcome();
+              showLoading(t('loading'));
+              document.getElementById('city-search').value = name;
+              const [lng, lat] = item.center.split(',').map(Number);
+              await switchCity(name, lng, lat, cc);
+              setTimeout(() => { isSelectingCity = false; }, 100);
+            };
+            results.appendChild(el);
+          });
+          results.style.display = 'block';
+          return;
+        }
+        data.pois.forEach(item => {
+          const el = document.createElement('div');
+          el.className = 'result-item';
+          // 构建完整地址
+          let fullAddress = '';
+          if (item.pname && item.cityname && item.adname && item.address) {
+            fullAddress = `${item.pname}${item.cityname}${item.adname}${item.address}`;
+          } else if (item.pname && item.cityname && item.adname) {
+            fullAddress = `${item.pname}${item.cityname}${item.adname}${item.name}`;
+          } else if (item.pname && item.adname) {
+            fullAddress = `${item.pname}${item.adname}${item.name}`;
+          } else {
+            fullAddress = item.address || item.name;
+          }
+          el.innerHTML = `<div>${item.name}</div><div class="result-sub">${fullAddress}</div>`;
+          el.onclick = async () => {
+            isSelectingCity = true;
+            results.style.display = 'none';
+            const name = item.name;
+            const cc = 'cn';
+            input.value = name;
+            dismissWelcome();
+            showLoading(t('loading'));
+            document.getElementById('city-search').value = name;
+            const [lng, lat] = item.location.split(',').map(Number);
+            await switchCity(name, lng, lat, cc);
+            setTimeout(() => { isSelectingCity = false; }, 100);
+          };
+          results.appendChild(el);
+        });
+        results.style.display = 'block';
+      } catch(e) { 
+        console.error('搜索失败:', e);
+        results.style.display = 'none'; 
+      }
+    }, 400);
+  });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { results.style.display = 'none'; }
+  });
+  
+  // 点击外部关闭搜索结果
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.welcome-search-wrap')) {
+      results.style.display = 'none';
+    }
+  });
+})();
+
+// ── 定位功能 ──
+function initLocateButton() {
+  const btn = document.getElementById('welcome-locate-btn');
+  if (!btn) return;
+  
+  btn.addEventListener('click', async () => {
+    if (!navigator.geolocation) {
+      alert('您的浏览器不支持定位功能');
+      return;
+    }
+    
+    btn.disabled = true;
+    btn.textContent = '🔄';
+    
+    try {
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 60000
+        });
+      });
+      
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+      
+      // 反向地理编码获取城市名称
+      const key = '6db4289a25ce8104d8a6607311568479';
+      const reverseGeocodeUrl = `https://restapi.amap.com/v3/geocode/regeo?key=${key}&location=${lng},${lat}&extensions=base&batch=false&roadlevel=0`;
+      const res = await fetch(reverseGeocodeUrl);
+      const data = await res.json();
+      
+      let cityName = '当前位置';
+      const countryCode = 'cn'; // Amap is for China
+      if (data.status === '1' && data.regeocode && data.regeocode.addressComponent) {
+        const addr = data.regeocode.addressComponent;
+        cityName = addr.city || addr.district || addr.township || '当前位置';
+      }
+      
+      // 填充搜索框
+      const input = document.getElementById('welcome-input');
+      if (input) input.value = cityName;
+      
+      // 关闭欢迎屏并加载城市
+      dismissWelcome();
+      showLoading(t('loading'));
+      await switchCity(cityName, lng, lat, countryCode);
+      
+    } catch (error) {
+      console.error('定位失败:', error);
+      alert('定位失败，请检查位置权限设置');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '📍';
+    }
+  });
+}
+
+// 初始化底部控件
+function initBottomControls() {
+  // 底部城市输入框
+  const bottomInput = document.getElementById('bottom-city-input');
+  const bottomResults = document.createElement('div');
+  bottomResults.id = 'bottom-search-results';
+  bottomResults.style.cssText = `
+    position: absolute;
+    bottom: 100%;
+    left: 20px;
+    right: 20px;
+    margin-bottom: 8px;
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 10px;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.12);
+    overflow: hidden;
+    display: none;
+    max-height: 200px;
+    overflow-y: auto;
+  `;
+  document.querySelector('.bottom-controls').appendChild(bottomResults);
+  
+  // 阻止搜索结果框内部的点击事件冒泡
+  bottomResults.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+  
+  let bottomSearchTimer = null;
+  let isSelectingCity = false; // 标记是否正在选择城市
+  
+  bottomInput.addEventListener('input', () => {
+    if (isSelectingCity) return; // 如果正在选择城市，不触发搜索
+    clearTimeout(bottomSearchTimer);
+    const q = bottomInput.value.trim();
+    if (!q) {
+      bottomResults.style.display = 'none';
+      return;
+    }
+    bottomSearchTimer = setTimeout(() => searchCityBottom(q), 400);
+  });
+  
+  async function searchCityBottom(query) {
+    try {
+      const key = '6db4289a25ce8104d8a6607311568479';
+      // 使用POI搜索API获取更详细的地址信息
+      const url = `https://restapi.amap.com/v3/place/text?key=${key}&keywords=${encodeURIComponent(query)}&city=&citylimit=false&extensions=base&offset=10`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.status !== '1' || !data.pois || data.pois.length === 0) {
+        // 如果POI搜索没有结果，回退到行政区划搜索
+        const url2 = `https://restapi.amap.com/v3/config/district?key=${key}&keywords=${encodeURIComponent(query)}&subdistrict=0&extensions=base`;
+        const res2 = await fetch(url2);
+        const data2 = await res2.json();
+        if (data2.status !== '1' || !data2.districts || data2.districts.length === 0) {
+          bottomResults.innerHTML = `<div class="result-item" style="color:#888">${t('noResult')}</div>`;
+          bottomResults.style.display = 'block';
+          return;
+        }
+        bottomResults.innerHTML = data2.districts.map((item, i) => {
+          const name = item.name;
+          const level = item.level;
+          const sub = level === 'city' ? '城市' : level === 'province' ? '省份' : '区县';
+          const cc = 'cn';
+          return `<div class="result-item" data-idx="${i}" data-lng="${item.center.split(',')[0]}" data-lat="${item.center.split(',')[1]}" data-name="${name}" data-cc="${cc}">
+            <div>${name}</div>
+            <div class="result-sub">${sub}</div>
+          </div>`;
+        }).join("");
+        bottomResults.style.display = 'block';
+        bottomResults.querySelectorAll(".result-item[data-lng]").forEach(el => {
+          el.addEventListener("click", () => {
+            const lng = parseFloat(el.dataset.lng);
+            const lat = parseFloat(el.dataset.lat);
+            const name = el.dataset.name;
+            const cc = el.dataset.cc;
+            isSelectingCity = true;
+            bottomInput.value = name;
+            bottomResults.style.display = "none";
+            showLoading(t('loading'));
+            switchCity(name, lng, lat, cc);
+            setTimeout(() => { isSelectingCity = false; }, 100);
+          });
+        });
+        return;
+      }
+      bottomResults.innerHTML = data.pois.map((item, i) => {
+        const name = item.name;
+        const cc = 'cn';
+        // 构建完整地址
+        let fullAddress = '';
+        if (item.pname && item.cityname && item.adname && item.address) {
+          fullAddress = `${item.pname}${item.cityname}${item.adname}${item.address}`;
+        } else if (item.pname && item.cityname && item.adname) {
+          fullAddress = `${item.pname}${item.cityname}${item.adname}${item.name}`;
+        } else if (item.pname && item.adname) {
+          fullAddress = `${item.pname}${item.adname}${item.name}`;
+        } else {
+          fullAddress = item.address || item.name;
+        }
+        return `<div class="result-item" data-idx="${i}" data-lng="${item.location.split(',')[0]}" data-lat="${item.location.split(',')[1]}" data-name="${name}" data-cc="${cc}">
+          <div>${name}</div>
+          <div class="result-sub">${fullAddress}</div>
+        </div>`;
+      }).join("");
+      bottomResults.style.display = 'block';
+      bottomResults.querySelectorAll(".result-item[data-lng]").forEach(el => {
+        el.addEventListener("click", () => {
+          const lng = parseFloat(el.dataset.lng);
+          const lat = parseFloat(el.dataset.lat);
+          const name = el.dataset.name;
+          const cc = el.dataset.cc;
+          isSelectingCity = true;
+          bottomInput.value = name;
+          bottomResults.style.display = "none";
+          showLoading(t('loading'));
+          switchCity(name, lng, lat, cc);
+          setTimeout(() => { isSelectingCity = false; }, 100);
+        });
+      });
+    } catch(e) {
+      console.error('搜索失败:', e);
+      bottomResults.innerHTML = `<div class="result-item" style="color:#888">${t('searchFailed')}</div>`;
+      bottomResults.style.display = "block";
+    }
+  }
+  
+  // 点击外部关闭搜索结果
+  document.addEventListener("click", e => {
+    if (!e.target.closest(".bottom-controls")) bottomResults.style.display = "none";
+  });
+  
+  // 自驾时长滑动条
+  const slider = document.getElementById('drive-time-slider');
+  const sliderTime = document.getElementById('slider-time');
+  
+  slider.addEventListener('input', () => {
+    MAX_DRIVE_HOURS = parseFloat(slider.value);
+    sliderTime.textContent = `${MAX_DRIVE_HOURS.toFixed(1)}h`;
+    // 重新渲染地图
+    if (allCountyFeatures.length > 0) {
+      renderMap(true);
+    }
+  });
+  
+  // 同步滑动条值
+  slider.value = MAX_DRIVE_HOURS;
+  sliderTime.textContent = `${MAX_DRIVE_HOURS.toFixed(1)}h`;
+}
+
+// 初始化定位按钮
+document.addEventListener('DOMContentLoaded', initLocateButton);
+// 初始化底部控件
+document.addEventListener('DOMContentLoaded', initBottomControls);
+
+// ── 首次加载 ──
+(async function init() {
+  // 检查 URL 参数是否指定了城市
+  const urlCity = new URLSearchParams(window.location.search).get('city');
+
+  if (urlCity) {
+    // 有 URL 参数：跳过欢迎屏，直接加载
+    dismissWelcome();
+    // 立即用 urlCity 更新标题/图例/搜索框，不等语言文件加载
+    const _lang = localStorage.getItem('lang') || detectLang();
+    const _subtitleSuffix = { 'zh-CN': '耗时&距离', 'zh-TW': '耗時&距離', 'ja': '所要時間&距離', 'en': 'Time & Distance' }[_lang] || 'Time & Distance';
+    const _originPrefix = { 'zh-CN': '出发市', 'zh-TW': '出發市', 'ja': '出発市', 'en': 'Origin City' }[_lang] || 'Origin City';
+    document.getElementById("title-sub").textContent = `${urlCity} · ${_subtitleSuffix}`;
+    document.getElementById("legend-origin").textContent = `${_originPrefix} (${urlCity})`;
+    document.title = urlCity;
+    searchInput.value = urlCity;
+    showLoading(t('loading') || '...');
+
+    try {
+      const res = await fetch(`https://restapi.amap.com/v3/place/text?key=6db4289a25ce8104d8a6607311568479&types=150100|150200|150300|150400|150500|150600&city=&children=1&extensions=base&page=1&offset=8&keywords?q=${encodeURIComponent(urlCity)}&format=json&addressdetails=1&limit=1&accept-language=${window.LANG?.code?.startsWith("zh-TW") ? "zh-TW,zh" : window.LANG?.code === "ja" ? "ja" : window.LANG?.code === "zh-CN" ? "zh" : "en"}`, { headers: { 'User-Agent': 'DriveEscape/1.0' } });
+      const data = await res.json();
+      if (data.length > 0) {
+        const item = data[0];
+        const name = item.display_name.split(",")[0];
+        const cc = item.address?.country_code || '';
+        searchInput.value = name;
+        await switchCity(name, parseFloat(item.lon), parseFloat(item.lat), cc);
+        return;
+      }
+    } catch(e) {}
+  }
+
+  // 没有 URL 参数：显示欢迎屏，不加载默认城市
+  // 欢迎屏已在 HTML 中默认显示，等用户选择城市
+})();
+</script>
+</body>
+</html>
