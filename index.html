@@ -260,6 +260,76 @@
     .info-panel h4 { font-size: 15px; margin-bottom: 4px; }
     .info-panel .time { color: #1a6e5c; font-weight: 700; }
 
+    /* 景点信息面板 */
+    .scenic-panel {
+      position: fixed;
+      right: 12px;
+      top: 80px;
+      z-index: 1500;
+      padding: 14px 16px;
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(8px);
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+      font-size: 13px;
+      line-height: 1.5;
+      display: none;
+      width: 280px;
+      max-height: calc(100vh - 180px);
+      overflow-y: auto;
+    }
+    .scenic-panel.active { display: block !important; }
+    .scenic-panel h4 {
+      font-size: 15px;
+      margin-bottom: 8px;
+      color: #1a6e5c;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .scenic-panel .close-btn {
+      cursor: pointer;
+      font-size: 18px;
+      color: #999;
+      padding: 0 4px;
+      line-height: 1;
+    }
+    .scenic-panel .close-btn:hover { color: #333; }
+    .scenic-item {
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+    }
+    .scenic-item:last-child { border-bottom: none; }
+    .scenic-item .scenic-name {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 2px;
+    }
+    .scenic-item .scenic-address {
+      font-size: 11px;
+      color: #888;
+      margin-bottom: 2px;
+    }
+    .scenic-item .scenic-rating {
+      font-size: 12px;
+      color: #e8a43a;
+    }
+    .scenic-loading {
+      text-align: center;
+      color: #999;
+      padding: 20px 0;
+    }
+    .scenic-loading .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid #e0e0e0;
+      border-top-color: #1a6e5c;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 8px;
+    }
+
     /* 隐藏 leaflet 默认控件样式 */
     .leaflet-control-attribution { font-size: 9px !important; }
     /* 底部控制面板 */
@@ -660,6 +730,14 @@
   <div id="info-detail"></div>
 </div>
 
+<div class="scenic-panel" id="scenic-panel">
+  <h4>
+    <span id="scenic-title">景点信息</span>
+    <span class="close-btn" id="scenic-close">&times;</span>
+  </h4>
+  <div id="scenic-content"></div>
+</div>
+
 <div class="bottom-controls">
   <div class="bottom-input">
     <input type="text" id="bottom-city-input" placeholder="输入出发城市，开始逃离..." />
@@ -876,8 +954,8 @@ L.tileLayer("https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scal
 }).addTo(map);
 
 // ── 全局状态 ──
-let currentOrigin = [120.15, 30.26]; // [lng, lat]
-let currentCityName = "杭州";
+let currentOrigin = null; // [lng, lat]
+let currentCityName = "";
 let originAdcode = null;
 let driveDataMap = {};       // adcode → { name, time, dist, isOrigin, estimated }
 let allCountyFeatures = [];
@@ -888,6 +966,12 @@ let labelLayer = L.layerGroup().addTo(map);
 
 // 需要在 switchCity 中清除的图层
 let activeLayers = [];
+
+// 预加载缓存
+let preloadCache = {
+  provinces: {},  // adcode → GeoJSON data
+  loading: new Set()  // 正在加载的 adcode
+};
 
 // ── 预设城市数据 ──
 const PRESET_CITIES = {
@@ -970,6 +1054,96 @@ function showInfo(dd) {
     ? `<span class="time">${t('originLabel')}</span>`
     : `<span class="time">🕐 ${fmtTime(dd.time)} ${t('timeUnit')}</span> · ${dd.dist} km${dd.estimated ? ' ' + t('estimated') : ''}`;
   infoPanel.style.display = "block";
+}
+
+// ── 景点信息面板 ──
+let scenicPanel, scenicTitle, scenicContent, scenicClose;
+let currentScenicAdcode = null;
+
+function initScenicPanel() {
+  scenicPanel = document.getElementById("scenic-panel");
+  scenicTitle = document.getElementById("scenic-title");
+  scenicContent = document.getElementById("scenic-content");
+  scenicClose = document.getElementById("scenic-close");
+  
+  console.log('景点面板初始化:', {
+    panel: !!scenicPanel,
+    title: !!scenicTitle,
+    content: !!scenicContent,
+    close: !!scenicClose
+  });
+  
+  if (scenicClose) {
+    scenicClose.addEventListener("click", () => {
+      scenicPanel.classList.remove("active");
+      currentScenicAdcode = null;
+    });
+  }
+}
+
+async function showScenicSpots(feature) {
+  const code = String(feature?.properties?.adcode || "");
+  const name = feature?.properties?.name || "";
+  const center = feature?.properties?.centroid || feature?.properties?.center;
+  
+  console.log('showScenicSpots 被调用:', { code, name, center });
+  
+  if (!center || center.length !== 2) {
+    console.warn('区县中心坐标无效:', center);
+    return;
+  }
+  
+  const [lng, lat] = center;
+  
+  // 如果已经显示该区县景点，不重复请求
+  if (currentScenicAdcode === code && scenicPanel.classList.contains("active")) {
+    console.log('已显示该区县景点，跳过');
+    return;
+  }
+  
+  currentScenicAdcode = code;
+  scenicTitle.textContent = `${name} 景点`;
+  scenicContent.innerHTML = `
+    <div class="scenic-loading">
+      <div class="spinner"></div>
+      <div>正在加载景点信息...</div>
+    </div>
+  `;
+  scenicPanel.classList.add("active");
+  console.log('景点面板已显示，当前 adcode:', code);
+  
+  try {
+    const key = '6db4289a25ce8104d8a6607311568479';
+    // 使用高德地图POI搜索获取景点信息
+    const url = `https://restapi.amap.com/v3/place/around?key=${key}&location=${lng},${lat}&radius=15000&types=110000|110100|110200|110300|110400|110500|110600|110700|110800|110900|111000|111100|111200|111300|111400|111500|111600|111700|111800|111900&offset=15&page=1&extensions=base`;
+    
+    console.log('请求景点数据:', url);
+    const res = await fetch(url);
+    const data = await res.json();
+    console.log('景点数据返回:', data);
+    
+    if (data.status === '1' && data.pois && data.pois.length > 0) {
+      scenicContent.innerHTML = data.pois.map(poi => {
+        const rating = poi.rating ? `⭐ ${poi.rating}` : '';
+        const address = poi.address || poi.pname || '';
+        const fullAddress = address ? `${poi.pname || ''}${poi.adname || ''}${address}` : `${poi.pname || ''}${poi.adname || ''}`;
+        return `
+          <div class="scenic-item">
+            <div class="scenic-name">${poi.name}</div>
+            ${fullAddress ? `<div class="scenic-address">📍 ${fullAddress}</div>` : ''}
+            ${rating ? `<div class="scenic-rating">${rating}</div>` : ''}
+          </div>
+        `;
+      }).join("");
+      console.log(`显示 ${data.pois.length} 个景点`);
+    } else {
+      scenicContent.innerHTML = `<div class="scenic-loading">暂无景点信息</div>`;
+      console.log('无景点数据');
+    }
+  } catch(e) {
+    console.error('加载景点失败:', e);
+    scenicContent.innerHTML = `<div class="scenic-loading">加载失败，请稍后重试</div>`;
+  }
 }
 
 // ── 标签 ──
@@ -1198,13 +1372,74 @@ const DIRECT_MUNICIPALITIES = new Set([110000, 120000, 310000, 500000]);
 async function loadDataVGeoJSON(adcode) {
   const url = `https://geo.datav.aliyun.com/areas_v3/bound/${adcode}_full.json`;
   console.log('加载 DataV 数据:', url);
+  
+  // 尝试从预加载缓存读取
+  if (preloadCache.provinces[adcode]) {
+    console.log('使用预加载缓存:', adcode);
+    return preloadCache.provinces[adcode];
+  }
+  
+  // 尝试从 localStorage 缓存读取
+  const cacheKey = `datav_${adcode}`;
+  try {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed && parsed.timestamp && (Date.now() - parsed.timestamp) < 7 * 24 * 60 * 60 * 1000) {
+        console.log('使用缓存的 DataV 数据:', adcode);
+        const data = parsed.data;
+        preloadCache.provinces[adcode] = data; // 也存入预加载缓存
+        return data;
+      }
+    }
+  } catch(e) {}
+  
   try {
     const res = await fetchJSON(url);
+    // 保存到预加载缓存
+    preloadCache.provinces[adcode] = res;
+    // 保存到 localStorage
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({ data: res, timestamp: Date.now() }));
+    } catch(e) {}
     return res;
   } catch(e) {
     console.warn('DataV API 加载失败:', e);
     return null;
   }
+}
+
+// 预加载附近省份数据（后台静默加载）
+async function preloadNearbyProvinces(lng, lat) {
+  const nearProvinces = [];
+  for (const prov of PROVINCES) {
+    if (prov.code >= 710000) continue;
+    if (preloadCache.provinces[prov.code]) continue; // 已缓存
+    if (preloadCache.loading.has(prov.code)) continue; // 正在加载
+    const dist = haversine(lng, lat, prov.center[0], prov.center[1]);
+    if (dist < 600) nearProvinces.push(prov);
+  }
+  
+  if (nearProvinces.length === 0) return;
+  
+  console.log(`预加载 ${nearProvinces.length} 个省份数据`);
+  
+  // 后台加载，不阻塞主流程
+  const loadPromises = nearProvinces.slice(0, 3).map(async (prov) => {
+    preloadCache.loading.add(prov.code);
+    try {
+      await loadDataVGeoJSON(prov.code);
+    } catch(e) {
+      console.warn(`预加载省份 ${prov.code} 失败:`, e);
+    } finally {
+      preloadCache.loading.delete(prov.code);
+    }
+  });
+  
+  // 不 await，让它在后台运行
+  Promise.all(loadPromises).then(() => {
+    console.log('预加载完成');
+  });
 }
 
 async function loadProvinceCounties(provAdcode) {
@@ -1263,7 +1498,8 @@ async function loadProvinceCounties(provAdcode) {
       };
     });
     
-    const cityResults = await parallelLimit(cityTasks, 3);
+    // 提高并发度到 5，加快城市数据加载
+    const cityResults = await parallelLimit(cityTasks, 5);
     console.log('城市结果数量:', cityResults.length);
 
     return { provAdcode, provOutline, cityResults };
@@ -1296,23 +1532,43 @@ async function loadProvinceCities(provAdcode) {
   }
 }
 
-// ── OSRM 批量驾车时间 ──
+// ── OSRM 批量驾车时间（优化版：并行请求 + 超时控制） ──
 async function fetchOSRMBatch(originLng, originLat, destinations) {
-  // destinations: [{ adcode, lng, lat, name }]
-  // 每批最多 50 个
   const results = {};
-  const batchSize = 50;
+  const batchSize = 100;
 
-  for (let i = 0; i < destinations.length; i += batchSize) {
-    const batch = destinations.slice(i, i + batchSize);
-    const coords = `${originLng},${originLat};` + batch.map(d => `${d.lng},${d.lat}`).join(";");
-    const destIndices = batch.map((_, j) => j + 1).join(";");
-    const url = `https://router.project-osrm.org/table/v1/driving/${coords}?sources=0&destinations=${destIndices}&annotations=duration,distance`;
-
+  async function fetchWithTimeout(url, timeoutMs = 15000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(url);
-      const data = await res.json();
-      if (data.code === "Ok") {
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      if (!res.ok) return null;
+      return res.json();
+    } catch(e) {
+      clearTimeout(timer);
+      return null;
+    }
+  }
+
+  const batches = [];
+  for (let i = 0; i < destinations.length; i += batchSize) {
+    batches.push(destinations.slice(i, i + batchSize));
+  }
+
+  // 并行请求，最多 3 个并发
+  const concurrency = 3;
+  let idx = 0;
+  async function worker() {
+    while (idx < batches.length) {
+      const bi = idx++;
+      const batch = batches[bi];
+      const coords = `${originLng},${originLat};` + batch.map(d => `${d.lng},${d.lat}`).join(";");
+      const destIndices = batch.map((_, j) => j + 1).join(";");
+      const url = `https://router.project-osrm.org/table/v1/driving/${coords}?sources=0&destinations=${destIndices}&annotations=duration,distance`;
+
+      const data = await fetchWithTimeout(url);
+      if (data && data.code === "Ok") {
         const durations = data.durations[0];
         const distances = data.distances[0];
         batch.forEach((d, j) => {
@@ -1327,13 +1583,15 @@ async function fetchOSRMBatch(originLng, originLat, destinations) {
           }
         });
       }
-    } catch(e) {}
 
-    // 批次间间隔
-    if (i + batchSize < destinations.length) {
-      await new Promise(r => setTimeout(r, 500));
+      // 批次间短间隔
+      if (idx < batches.length) {
+        await new Promise(r => setTimeout(r, 200));
+      }
     }
   }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, batches.length) }, () => worker()));
   return results;
 }
 
@@ -1443,7 +1701,9 @@ function renderMap(skipFitBounds = false) {
       });
       layer.on("click", e => {
         L.DomEvent.stopPropagation(e);
+        console.log('区县被点击:', feature?.properties?.name, feature?.properties?.adcode);
         showInfo(getDriveData(feature));
+        showScenicSpots(feature);
       });
 
       if (isOriginCounty) {
@@ -1461,6 +1721,8 @@ function renderMap(skipFitBounds = false) {
   // 点击地图关闭面板
   map.on("click", () => {
     infoPanel.style.display = "none";
+    scenicPanel.classList.remove("active");
+    currentScenicAdcode = null;
     countyLayer.resetStyle();
   });
   map.getContainer().addEventListener("mouseleave", () => {
@@ -1546,6 +1808,9 @@ async function loadPresetCity(name, lng, lat, dataFile) {
   
   // 立即更新地图视图到新的城市位置
   map.setView([lat, lng], 8);
+
+  // 2.1 预加载附近省份数据（后台进行，不阻塞主流程）
+  preloadNearbyProvinces(lng, lat);
 
   // 3. 更新标题 + URL
   document.getElementById("title-sub").textContent = t('subtitle', { city: name });
@@ -1657,10 +1922,22 @@ async function switchCity(name, lng, lat, countryCode) {
     for (const prov of PROVINCES) {
       if (prov.code >= 710000) continue;
       const dist = haversine(lng, lat, prov.center[0], prov.center[1]);
-      if (dist < 800) nearProvinces.push(prov); // 800km 确保覆盖大省边缘区县
+      if (dist < 600) nearProvinces.push(prov); // 600km 缩小范围，减少加载数据量
     }
 
-    const nearData = await parallelLimit(nearProvinces.map(p => () => loadProvinceCounties(p.code)), 3);
+    console.log(`需要加载 ${nearProvinces.length} 个省份数据`);
+    showLoading(t('loadingAdmin') + ` (0/${nearProvinces.length})`);
+
+    // 提高省份加载并发度到 5
+    let loadedCount = 0;
+    const provinceTasks = nearProvinces.map(p => async () => {
+      const result = await loadProvinceCounties(p.code);
+      loadedCount++;
+      showLoading(t('loadingAdmin') + ` (${loadedCount}/${nearProvinces.length})`);
+      return result;
+    });
+
+    const nearData = await parallelLimit(provinceTasks, 5);
 
     for (const prov of nearData) {
       if (prov.provOutline) provinceOutlines.push(prov.provOutline);
@@ -1842,7 +2119,7 @@ async function switchCity(name, lng, lat, countryCode) {
     hideLoading();
     updateURL(name);
 
-    // 9. OSRM 批量计算真实驾车时间（逐批更新渲染）
+    // 9. OSRM 批量计算真实驾车时间（使用优化后的并行请求）
     const destinations = [];
     for (const f of allCountyFeatures) {
       const code = String(f?.properties?.adcode || "");
@@ -1853,56 +2130,31 @@ async function switchCity(name, lng, lat, countryCode) {
       }
     }
 
-    const batchSize = 50;
-    const osrmCache = {};
-    const batches = [];
-    for (let i = 0; i < destinations.length; i += batchSize) {
-      batches.push(destinations.slice(i, i + batchSize));
-    }
-
-    // 串行逐批请求 OSRM，每批完成后刷新
-    showLoading(t('loadingDriveTime', { done: '0', total: String(batches.length) }));
-    for (let bi = 0; bi < batches.length; bi++) {
-      const batch = batches[bi];
-      const coords = `${lng},${lat};` + batch.map(d => `${d.lng},${d.lat}`).join(";");
-      const destIndices = batch.map((_, j) => j + 1).join(";");
-      const url = `https://router.project-osrm.org/table/v1/driving/${coords}?sources=0&destinations=${destIndices}&annotations=duration,distance`;
-      try {
-        if (signal.aborted) break; // 欢迎屏打开，停止
-        const res = await fetch(url, { signal });
-        const data = await res.json();
-        if (data.code === "Ok") {
-          const durations = data.durations[0];
-          const distances = data.distances[0];
-          batch.forEach((d, j) => {
-            const timeSec = durations[j];
-            const distM = distances[j];
-            if (timeSec != null && timeSec > 0) {
-              const result = {
-                name: d.name,
-                time: Math.round(timeSec / 360) / 10,
-                dist: Math.round(distM / 1000)
-              };
-              driveDataMap[d.adcode] = { ...driveDataMap[d.adcode], ...result, estimated: false };
-              osrmCache[d.adcode] = result;
-            } else {
-              // OSRM 返回 null = 无法到达（跨海等），标记为超远
-              driveDataMap[d.adcode] = { ...driveDataMap[d.adcode], time: 999, dist: 0, estimated: false };
-              osrmCache[d.adcode] = { name: d.name, time: 999, dist: 0 };
-            }
-          });
-        }
-      } catch(e) {
-        if (e.name === 'AbortError') break; // 用户回到欢迎屏，停止
+    showLoading(t('loadingDriveTime', { done: '0', total: '...' }));
+    
+    const osrmResults = await fetchOSRMBatch(lng, lat, destinations);
+    
+    if (!signal.aborted) {
+      const osrmCache = {};
+      for (const [code, result] of Object.entries(osrmResults)) {
+        driveDataMap[code] = { ...driveDataMap[code], ...result, estimated: false };
+        osrmCache[code] = result;
       }
-      if (signal.aborted) break;
-      showLoading(t('loadingDriveTime', { done: String(bi + 1), total: String(batches.length) }));
+      
+      // 标记无法到达的点
+      for (const f of allCountyFeatures) {
+        const code = String(f?.properties?.adcode || "");
+        if (!osrmResults[code] && driveDataMap[code] && driveDataMap[code].estimated) {
+          // 保持估算值，不标记为超远
+        }
+      }
+      
+      hideLoading();
       renderMap(true);
+      
+      // 保存到 localStorage
+      try { localStorage.setItem(cacheKey, JSON.stringify(osrmCache)); } catch(e) {}
     }
-    if (!signal.aborted) hideLoading();
-
-    // 保存到 localStorage
-    try { localStorage.setItem(cacheKey, JSON.stringify(osrmCache)); } catch(e) {}
   }
 
   // 更新 URL
@@ -2304,6 +2556,8 @@ function initBottomControls() {
 document.addEventListener('DOMContentLoaded', initLocateButton);
 // 初始化底部控件
 document.addEventListener('DOMContentLoaded', initBottomControls);
+// 初始化景点面板
+document.addEventListener('DOMContentLoaded', initScenicPanel);
 
 // ── 首次加载 ──
 (async function init() {
